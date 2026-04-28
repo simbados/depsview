@@ -13,7 +13,8 @@ Node.js 18 or later. No third-party dependencies.
 ## Usage
 
 ```bash
-node src/main.js <path-to-python-project>
+node src/main.js <path-to-python-project> [--json] [--debug] [--include-tests]
+node src/main.js <github-url> [--json] [--debug] [--include-tests]
 ```
 
 **Example output:**
@@ -65,6 +66,22 @@ Pass `--json` to get machine-readable output without color codes:
 node src/main.js <path-to-python-project> --json
 ```
 
+### Excluding test dependencies (default)
+
+By default depsview skips test and developer tooling dependencies so the output reflects only the runtime requirements of the project:
+
+- **Test directories** — subdirectories named `test`, `tests`, `testing`, `e2e`, or `integration_tests` are not traversed when scanning a GitHub repository.
+- **Test requirement files** — `-r` includes whose filename contains a word segment matching `test`, `tests`, `testing`, `dev`, `lint`, `docs`, or `ci` (e.g. `requirements-test.txt`, `dev-requirements.txt`, `ci.txt`) are skipped.
+- **Poetry dev-deps** — `[tool.poetry.dev-dependencies]` and `[tool.poetry.group.<name>.dependencies]` sections in `pyproject.toml` are ignored.
+- **Pipenv dev-packages** — `[dev-packages]` in a `Pipfile` is ignored.
+
+Pass `--include-tests` to disable all of the above filtering and include every dependency:
+
+```bash
+node src/main.js <path-to-python-project> --include-tests
+node src/main.js <github-url> --include-tests
+```
+
 ### Debug mode
 
 Pass `--debug` to print API errors and warnings to stderr while fetching. Useful when a package shows `-` for Downloads/mo or an unexpected version is resolved:
@@ -94,9 +111,29 @@ node src/main.js <path-to-python-project> --json --debug
 
 `downloadsLastMonth` is `null` when pypistats.org has no data for that package.
 
+## GitHub URL support
+
+Pass a GitHub repository URL instead of a local path to analyse a remote project without cloning it:
+
+```bash
+node src/main.js https://github.com/owner/repo
+node src/main.js https://github.com/owner/repo/tree/main
+node src/main.js https://github.com/owner/repo/tree/main/subfolder
+```
+
+depsview searches the target directory and up to **two levels of subdirectories** for dependency files. This means root-level files (`pyproject.toml`, `requirements.txt`, …) and nested files such as a Home Assistant `custom_components/<integration>/manifest.json` are all discovered and merged into a single run.
+
+When the same package is declared in more than one file its version constraints are combined (e.g. `>=2.28` from `pyproject.toml` and `<3.0` from `requirements.txt` become `>=2.28,<3.0`).
+
+**Authentication:** the GitHub API allows 60 unauthenticated requests per hour. For private repositories or to increase the limit to 5 000 requests/hour, set the `GITHUB_TOKEN` environment variable:
+
+```bash
+GITHUB_TOKEN=ghp_... node src/main.js https://github.com/owner/private-repo
+```
+
 ## Supported dependency file formats
 
-depsview automatically detects the dependency file in the project directory and picks the first match in this priority order:
+depsview finds all of the following files and parses every one it finds:
 
 | File | Format | Notes |
 |---|---|---|
@@ -105,6 +142,8 @@ depsview automatically detects the dependency file in the project directory and 
 | `requirements.txt` | pip requirements format | Supports `-r` file includes |
 | `setup.cfg` | `[options] install_requires` | |
 | `Pipfile` | Pipenv | Reads `[packages]` only |
+
+All matching files are parsed and their dependency lists are merged.
 
 ### Version constraints
 
@@ -127,6 +166,3 @@ Comma-separated constraints (`>=2.28.0,<3.0.0`) are also supported. When no exac
 npm test
 ```
 
-## Roadmap
-
-- [ ] Parse dependencies directly from a GitHub repository URL (without cloning locally)

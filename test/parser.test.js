@@ -4,11 +4,13 @@
  * against every fixture format and version-constraint syntax.
  */
 
-import { test, describe } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseDependencyFile, parseRequiresDist, parseDependencyString } from '../src/parser.js';
+import { parseDependencyFile, parseRequiresDist, parseDependencyString, parsePyprojectToml, parsePipfile } from '../src/parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtures = path.join(__dirname, 'fixtures');
@@ -516,6 +518,218 @@ describe('manifest.json — non-requirements fields ignored', () => {
     const { deps } = parseDependencyFile(path.join(fixtures, 'manifest-exact'));
     const domain = deps.find(d => d.name === 'domain' || d.name === 'test_integration');
     assert.equal(domain, undefined);
+  });
+});
+
+// ── parseRequirementsTxt: security ───────────────────────────────────────────
+
+describe('parseRequirementsTxt — security: path traversal via -r include', () => {
+  let tmpDir, projectDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'depsview-sec-'));
+    projectDir = path.join(tmpDir, 'project');
+    fs.mkdirSync(projectDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('does not read a file outside the project root via ../ traversal', () => {
+    // Place a file one level above the project root that a -r include could reach
+    fs.writeFileSync(path.join(tmpDir, 'outside.txt'), 'evil-package\n');
+    fs.writeFileSync(
+      path.join(projectDir, 'requirements.txt'),
+      '-r ../outside.txt\nrequests\n'
+    );
+    const { deps } = parseDependencyFile(projectDir);
+    assert.ok(deps.some(d => d.name === 'requests'), 'in-project package should be present');
+    assert.ok(!deps.some(d => d.name === 'evil-package'), 'out-of-project package must not appear');
+  });
+
+  test('does not read an absolute path via -r include', () => {
+    // Write a file at an absolute path that is outside the project
+    const outsidePath = path.join(tmpDir, 'absolute-outside.txt');
+    fs.writeFileSync(outsidePath, 'evil-absolute\n');
+    fs.writeFileSync(
+      path.join(projectDir, 'requirements.txt'),
+      // Use the absolute path directly as the include target
+      `-r ${outsidePath}\nrequests\n`
+    );
+    const { deps } = parseDependencyFile(projectDir);
+    assert.ok(deps.some(d => d.name === 'requests'), 'in-project package should be present');
+    assert.ok(!deps.some(d => d.name === 'evil-absolute'), 'absolute-path package must not appear');
+  });
+});
+
+describe('parseRequirementsTxt — security: circular -r includes', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'depsview-circ-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('does not hang or crash on a self-referencing -r include', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, 'requirements.txt'),
+      '-r requirements.txt\nrequests\n'
+    );
+    const { deps } = parseDependencyFile(tmpDir);
+    assert.ok(deps.some(d => d.name === 'requests'));
+  });
+
+  test('does not hang on a two-file circular include chain (A includes B includes A)', () => {
+    fs.writeFileSync(path.join(tmpDir, 'requirements.txt'), '-r b.txt\nrequests\n');
+    fs.writeFileSync(path.join(tmpDir, 'b.txt'), '-r requirements.txt\nclick\n');
+    const { deps } = parseDependencyFile(tmpDir);
+    assert.ok(deps.some(d => d.name === 'requests'));
+    assert.ok(deps.some(d => d.name === 'click'));
+  });
+});
+
+// ── parseRequirementsTxt: --include-tests filtering ──────────────────────────
+
+describe('parseRequirementsTxt — test -r include filtering', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'depsview-filter-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('skips -r requirements-test.txt by default', () => {
+    fs.writeFileSync(path.join(tmpDir, 'requirements.txt'), '-r requirements-test.txt\nrequests\n');
+    fs.writeFileSync(path.join(tmpDir, 'requirements-test.txt'), 'pytest\n');
+    const { deps } = parseDependencyFile(tmpDir);
+    assert.ok(deps.some(d => d.name === 'requests'), 'prod dep should be present');
+    assert.ok(!deps.some(d => d.name === 'pytest'), 'test dep must be absent by default');
+  });
+
+  test('includes -r requirements-test.txt when includeTests is true', () => {
+    fs.writeFileSync(path.join(tmpDir, 'requirements.txt'), '-r requirements-test.txt\nrequests\n');
+    fs.writeFileSync(path.join(tmpDir, 'requirements-test.txt'), 'pytest\n');
+    const { deps } = parseDependencyFile(tmpDir, { includeTests: true });
+    assert.ok(deps.some(d => d.name === 'pytest'), 'test dep should be present with includeTests');
+  });
+
+  test('skips -r dev-requirements.txt by default', () => {
+    fs.writeFileSync(path.join(tmpDir, 'requirements.txt'), '-r dev-requirements.txt\nrequests\n');
+    fs.writeFileSync(path.join(tmpDir, 'dev-requirements.txt'), 'black\n');
+    const { deps } = parseDependencyFile(tmpDir);
+    assert.ok(!deps.some(d => d.name === 'black'), 'dev dep must be absent by default');
+  });
+
+  test('skips -r requirements-ci.txt by default', () => {
+    fs.writeFileSync(path.join(tmpDir, 'requirements.txt'), '-r requirements-ci.txt\nrequests\n');
+    fs.writeFileSync(path.join(tmpDir, 'requirements-ci.txt'), 'tox\n');
+    const { deps } = parseDependencyFile(tmpDir);
+    assert.ok(!deps.some(d => d.name === 'tox'), 'ci dep must be absent by default');
+  });
+});
+
+// ── parsePyprojectToml: --include-tests (Poetry dev-deps) ────────────────────
+
+describe('parsePyprojectToml — includeTests: Poetry dev-dependencies', () => {
+  const content = `
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.28"
+
+[tool.poetry.dev-dependencies]
+pytest = "^8.0"
+black = "^24.0"
+`;
+
+  test('excludes dev-dependencies by default', () => {
+    const deps = parsePyprojectToml(content);
+    assert.ok(!deps.some(d => d.name === 'pytest'), 'pytest should be absent by default');
+    assert.ok(!deps.some(d => d.name === 'black'), 'black should be absent by default');
+  });
+
+  test('includes dev-dependencies when includeTests is true', () => {
+    const deps = parsePyprojectToml(content, true);
+    assert.ok(deps.some(d => d.name === 'pytest'), 'pytest should be present with includeTests');
+    assert.ok(deps.some(d => d.name === 'black'), 'black should be present with includeTests');
+  });
+
+  test('still includes prod deps when includeTests is true', () => {
+    const deps = parsePyprojectToml(content, true);
+    assert.ok(deps.some(d => d.name === 'requests'), 'requests should always be present');
+  });
+});
+
+describe('parsePyprojectToml — includeTests: Poetry group dependencies', () => {
+  const content = `
+[tool.poetry.dependencies]
+requests = "^2.28"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+
+[tool.poetry.group.lint.dependencies]
+ruff = "^0.4"
+`;
+
+  test('excludes group dependencies by default', () => {
+    const deps = parsePyprojectToml(content);
+    assert.ok(!deps.some(d => d.name === 'pytest'), 'pytest should be absent by default');
+    assert.ok(!deps.some(d => d.name === 'ruff'), 'ruff should be absent by default');
+  });
+
+  test('includes group dependencies when includeTests is true', () => {
+    const deps = parsePyprojectToml(content, true);
+    assert.ok(deps.some(d => d.name === 'pytest'), 'pytest should be present with includeTests');
+    assert.ok(deps.some(d => d.name === 'ruff'), 'ruff should be present with includeTests');
+  });
+});
+
+// ── parsePipfile: --include-tests (dev-packages) ──────────────────────────────
+
+describe('parsePipfile — includeTests: dev-packages', () => {
+  const content = `
+[packages]
+requests = ">=2.28.0"
+click = "*"
+
+[dev-packages]
+pytest = "*"
+black = ">=24.0"
+`;
+
+  test('excludes dev-packages by default', () => {
+    const deps = parsePipfile(content);
+    assert.ok(!deps.some(d => d.name === 'pytest'), 'pytest should be absent by default');
+    assert.ok(!deps.some(d => d.name === 'black'), 'black should be absent by default');
+  });
+
+  test('includes dev-packages when includeTests is true', () => {
+    const deps = parsePipfile(content, true);
+    assert.ok(deps.some(d => d.name === 'pytest'), 'pytest should be present with includeTests');
+    assert.ok(deps.some(d => d.name === 'black'), 'black should be present with includeTests');
+  });
+
+  test('still includes [packages] entries when includeTests is true', () => {
+    const deps = parsePipfile(content, true);
+    assert.ok(deps.some(d => d.name === 'requests'), 'requests should always be present');
+    assert.ok(deps.some(d => d.name === 'click'), 'click should always be present');
+  });
+
+  test('[packages] count is exactly 2 by default', () => {
+    const deps = parsePipfile(content);
+    assert.equal(deps.length, 2);
+  });
+
+  test('[packages] + [dev-packages] count is exactly 4 with includeTests', () => {
+    const deps = parsePipfile(content, true);
+    assert.equal(deps.length, 4);
   });
 });
 

@@ -5,6 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { isTestRequirementsFile } from './testFilter.js';
 
 /**
  * Normalizes a Poetry-style version constraint to a PEP 440-compatible specifier.
@@ -78,11 +79,26 @@ function parseRequiresDist(dep) {
  * Parses a requirements.txt file into a list of dependencies.
  * Handles inline comments, blank lines, `-r` file includes (recursively),
  * and common flags that should be ignored (`-i`, `--index-url`, `-c`, `-e`, etc.).
- * @param {string} content - file content string
- * @param {string} filePath - absolute path to this file (used to resolve `-r` includes)
+ *
+ * Security guards on `-r` includes:
+ *   - Path traversal: the resolved include path must start with `projectRoot`.
+ *     Includes that escape the project directory (e.g. `-r ../../../etc/shadow`)
+ *     are silently skipped.
+ *   - Circular includes: `visited` tracks every absolute path already parsed in
+ *     this chain. A file that has already been visited is silently skipped,
+ *     preventing infinite recursion from self-referencing or A→B→A cycles.
+ *
+ * @param {string} content      - file content string
+ * @param {string} filePath     - absolute path to this file (used to resolve `-r` includes)
+ * @param {string} projectRoot  - absolute path to the project root; includes that resolve
+ *                                outside this directory are skipped
+ * @param {Set<string>} visited - absolute paths already parsed in this include chain
+ * @param {boolean} includeTests - when false (default), -r includes whose filename contains
+ *                                 a test-related keyword are silently skipped
  * @returns {Array<{ name: string, versionSpec: string|null }>}
  */
-function parseRequirementsTxt(content, filePath) {
+function parseRequirementsTxt(content, filePath, projectRoot, visited = new Set(), includeTests = false) {
+  visited.add(filePath);
   const deps = [];
   const dir = path.dirname(filePath);
 
@@ -96,10 +112,21 @@ function parseRequirementsTxt(content, filePath) {
     // Recurse into included files: -r other.txt or --requirement other.txt
     if (/^(-r|--requirement)\s+/.test(line)) {
       const includePath = line.replace(/^(-r|--requirement)\s+/, '').trim();
+
+      // Skip test requirement includes unless the caller opted in
+      if (!includeTests && isTestRequirementsFile(path.basename(includePath))) continue;
+
       const fullPath = path.resolve(dir, includePath);
+
+      // Security: skip includes that escape the project root (path traversal guard)
+      if (projectRoot && !fullPath.startsWith(projectRoot + path.sep) && fullPath !== projectRoot) continue;
+
+      // Security: skip already-visited files (circular include guard)
+      if (visited.has(fullPath)) continue;
+
       try {
         const includeContent = fs.readFileSync(fullPath, 'utf8');
-        deps.push(...parseRequirementsTxt(includeContent, fullPath));
+        deps.push(...parseRequirementsTxt(includeContent, fullPath, projectRoot, visited, includeTests));
       } catch { /* missing include — skip silently */ }
       continue;
     }
@@ -131,11 +158,15 @@ function extractTomlArrayDeps(text, out) {
  * Parses a pyproject.toml file for runtime dependencies.
  * Supports PEP 621 `[project] dependencies` arrays and Poetry
  * `[tool.poetry.dependencies]` key-value tables (skipping optional deps).
+ * When includeTests is true, also parses `[tool.poetry.dev-dependencies]` and
+ * `[tool.poetry.group.<name>.dependencies]` sections.
  * Does NOT require a full TOML parser — uses a line-by-line state machine.
  * @param {string} content - raw file content
+ * @param {boolean} includeTests - when true, dev and group dependency sections are
+ *   also parsed in addition to the main dependencies section
  * @returns {Array<{ name: string, versionSpec: string|null }>}
  */
-function parsePyprojectToml(content) {
+function parsePyprojectToml(content, includeTests = false) {
   const deps = [];
   const lines = content.split('\n');
   let section = '';
@@ -182,8 +213,13 @@ function parsePyprojectToml(content) {
       continue;
     }
 
-    // ── Poetry: [tool.poetry.dependencies] ──────────────────────────────────
-    if (section === 'tool.poetry.dependencies') {
+    // ── Poetry: [tool.poetry.dependencies] and, when includeTests, dev/group sections
+    const isPoetryDeps = section === 'tool.poetry.dependencies'
+      || (includeTests && (
+        section === 'tool.poetry.dev-dependencies'
+        || /^tool\.poetry\.group\.[^.]+\.dependencies$/.test(section)
+      ));
+    if (isPoetryDeps) {
       if (line.startsWith('#') || !line.includes('=')) continue;
       const eqIdx = line.indexOf('=');
       const pkgName = line.slice(0, eqIdx).trim();
@@ -261,23 +297,31 @@ function parseSetupCfg(content) {
  * Parses a Pipfile (TOML format) for dependencies listed under `[packages]`.
  * Values are either `"*"` (any version), a version string like `">=2.0"`,
  * or an inline table like `{version = ">=2.0", extras = [...]}`.
+ * When includeTests is true, `[dev-packages]` entries are also included.
  * @param {string} content - raw file content
+ * @param {boolean} includeTests - when true, [dev-packages] is parsed in addition
+ *   to [packages]
  * @returns {Array<{ name: string, versionSpec: string|null }>}
  */
-function parsePipfile(content) {
+function parsePipfile(content, includeTests = false) {
   const deps = [];
   const lines = content.split('\n');
-  let inPackages = false;
+  /**
+   * True while the parser is positioned inside a dependency section
+   * ([packages], or [dev-packages] when includeTests is true).
+   * Lines are only parsed as deps when this flag is set.
+   */
+  let inDepSection = false;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
 
     if (/^\[.+\]$/.test(line)) {
-      inPackages = line === '[packages]';
+      inDepSection = line === '[packages]' || (includeTests && line === '[dev-packages]');
       continue;
     }
 
-    if (!inPackages || line.startsWith('#') || !line.includes('=')) continue;
+    if (!inDepSection || line.startsWith('#') || !line.includes('=')) continue;
 
     const eqIdx = line.indexOf('=');
     const pkgName = line.slice(0, eqIdx).trim();
@@ -324,13 +368,17 @@ function parseManifestJson(content) {
  * Priority order: pyproject.toml → manifest.json → requirements.txt → setup.cfg → Pipfile.
  * Returns the parsed dependencies and a label indicating which file was used.
  * @param {string} projectPath - absolute path to the Python project root
+ * @param {{ includeTests?: boolean }} [options] - parsing options
+ * @param {boolean} [options.includeTests=false] - when true, test/dev dependencies are
+ *   included alongside regular production dependencies
  * @returns {{ deps: Array<{ name: string, versionSpec: string|null }>, source: string }}
  */
-function parseDependencyFile(projectPath) {
+function parseDependencyFile(projectPath, options = {}) {
+  const { includeTests = false } = options;
   const candidates = [
     {
       file: 'pyproject.toml',
-      parse: (c) => parsePyprojectToml(c),
+      parse: (c) => parsePyprojectToml(c, includeTests),
     },
     {
       file: 'manifest.json',
@@ -338,7 +386,7 @@ function parseDependencyFile(projectPath) {
     },
     {
       file: 'requirements.txt',
-      parse: (c, fp) => parseRequirementsTxt(c, fp),
+      parse: (c, fp) => parseRequirementsTxt(c, fp, projectPath, new Set(), includeTests),
     },
     {
       file: 'setup.cfg',
@@ -346,7 +394,7 @@ function parseDependencyFile(projectPath) {
     },
     {
       file: 'Pipfile',
-      parse: (c) => parsePipfile(c),
+      parse: (c) => parsePipfile(c, includeTests),
     },
   ];
 
@@ -368,4 +416,4 @@ function parseDependencyFile(projectPath) {
   throw new Error(`No dependency file found in ${projectPath}. Looked for: ${tried}`);
 }
 
-export { parseDependencyFile, parseRequiresDist, parseDependencyString };
+export { parseDependencyFile, parseRequiresDist, parseDependencyString, parsePyprojectToml, parseManifestJson, parseSetupCfg, parsePipfile };

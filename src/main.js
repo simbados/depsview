@@ -14,26 +14,29 @@ import { resolveDependencies } from './depResolver.js';
 import { normalizePackageName } from './pypiClient.js';
 import { formatTable, formatJson } from './formatter.js';
 import { setDebug } from './debugging.js';
+import { isGithubUrl, parseGithubUrl } from './githubUrl.js';
+import { parseGithubDependencies } from './githubParser.js';
 
 /**
  * Parses CLI arguments from process.argv.
- * Expects: node main.js <project-path> [--json] [--debug]
- * @returns {{ projectPath: string, json: boolean, debug: boolean }}
+ * Expects: node main.js <project-path> [--json] [--debug] [--include-tests]
+ * @returns {{ projectPath: string, json: boolean, debug: boolean, includeTests: boolean }}
  */
 function parseArgs() {
   const args = process.argv.slice(2);
-  const jsonFlag  = args.includes('--json');
-  const debugFlag = args.includes('--debug');
+  const jsonFlag         = args.includes('--json');
+  const debugFlag        = args.includes('--debug');
+  const includeTestsFlag = args.includes('--include-tests');
   const positional = args.filter(a => !a.startsWith('--'));
 
   if (positional.length === 0) {
-    console.error('Usage: depsview <path-to-python-project> [--json] [--debug]');
+    console.error('Usage: depsview <path-to-python-project|github-url> [--json] [--debug] [--include-tests]');
     console.error('');
-    console.error('Supported dependency files: pyproject.toml, requirements.txt, setup.cfg, Pipfile');
+    console.error('Supported dependency files: pyproject.toml, manifest.json, requirements.txt, setup.cfg, Pipfile');
     process.exit(1);
   }
 
-  return { projectPath: positional[0], json: jsonFlag, debug: debugFlag };
+  return { projectPath: positional[0], json: jsonFlag, debug: debugFlag, includeTests: includeTestsFlag };
 }
 
 /**
@@ -43,14 +46,19 @@ function parseArgs() {
  * @returns {Promise<void>}
  */
 async function main() {
-  const { projectPath, json, debug } = parseArgs();
+  const { projectPath, json, debug, includeTests } = parseArgs();
   if (debug) setDebug(true);
   const absolutePath = path.resolve(projectPath);
 
-  // ── Step 1: Parse dependency file ─────────────────────────────────────────
+  // ── Step 1: Parse dependency file(s) ──────────────────────────────────────
   let deps, source;
   try {
-    ({ deps, source } = parseDependencyFile(absolutePath));
+    if (isGithubUrl(projectPath)) {
+      const githubRef = parseGithubUrl(projectPath);
+      ({ deps, source } = await parseGithubDependencies(githubRef, { includeTests }));
+    } else {
+      ({ deps, source } = parseDependencyFile(absolutePath, { includeTests }));
+    }
   } catch (err) {
     console.error(`Error: ${err.message}`);
     process.exit(1);
