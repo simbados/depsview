@@ -1,0 +1,132 @@
+# depsview
+
+Lists all dependencies and transitive dependencies of a Python project. For each package it shows the resolved version, release dates, total number of published versions, and monthly download count. All data is fetched live — no local Python installation required.
+
+Built with [Claude Code](https://claude.ai/code).
+
+**Data sources:** package metadata from [PyPI](https://pypi.org/), download statistics from [pypistats.org](https://pypistats.org/).
+
+## Requirements
+
+Node.js 18 or later. No third-party dependencies.
+
+## Usage
+
+```bash
+node src/main.js <path-to-python-project>
+```
+
+**Example output:**
+
+```
+Resolving dependencies from requirements.txt (2 direct)...
+
+Package             Version   Released     First Release  Releases  Downloads/mo
+---------------------------------------------------------------------------------
+certifi             2024.2.2  2024-02-02   2011-09-30     29        12,345,678
+urllib3             2.2.1     2024-02-18   2008-12-28     87        34,567,890
+idna                3.6       2023-11-25   2013-07-03     22        28,901,234
+requests            2.31.0    2023-05-22   2011-02-14     144       56,789,012
+charset-normalizer  3.3.2     2023-10-05   2021-08-16     57        18,234,567
+click               8.1.7     2023-08-17   2014-06-06     72        9,876,543
+---------------------------------------------------------------------------------
+6 packages total  (2 direct, 4 transitive)
+```
+
+Results are sorted by release date (newest first).
+
+### Output columns
+
+| Column | Description |
+|---|---|
+| Package | Package name |
+| Version | Resolved version (latest stable that satisfies the constraint) |
+| Released | Date the resolved version was published |
+| First Release | Date the package first appeared on PyPI |
+| Releases | Total number of published versions (popularity indicator) |
+| Downloads/mo | Downloads in the last 30 days from pypistats.org |
+
+### Color coding
+
+When the output is a terminal (not piped), individual date cells are highlighted:
+
+| Color | Cell | Meaning |
+|---|---|---|
+| Red | First Release | Package first appeared on PyPI within the last 30 days — may be immature or untrusted |
+| Yellow | Released | The resolved version was published within the last 7 days — freshly updated |
+
+Both cells on the same row can be colored independently. No color codes are emitted when output is piped or redirected.
+
+### JSON output
+
+Pass `--json` to get machine-readable output without color codes:
+
+```bash
+node src/main.js <path-to-python-project> --json
+```
+
+### Debug mode
+
+Pass `--debug` to print API errors and warnings to stderr while fetching. Useful when a package shows `-` for Downloads/mo or an unexpected version is resolved:
+
+```bash
+node src/main.js <path-to-python-project> --debug
+```
+
+Debug output lines are prefixed with `[debug]` and always go to stderr, so they do not interfere with `--json` output or piped table output. Both flags can be combined:
+
+```bash
+node src/main.js <path-to-python-project> --json --debug
+```
+
+```json
+[
+  {
+    "name": "requests",
+    "version": "2.31.0",
+    "released": "2023-05-22",
+    "firstReleased": "2011-02-14",
+    "releases": 144,
+    "downloadsLastMonth": 56789012
+  }
+]
+```
+
+`downloadsLastMonth` is `null` when pypistats.org has no data for that package.
+
+## Supported dependency file formats
+
+depsview automatically detects the dependency file in the project directory and picks the first match in this priority order:
+
+| File | Format | Notes |
+|---|---|---|
+| `pyproject.toml` | PEP 621 `[project] dependencies` or Poetry `[tool.poetry.dependencies]` | Optional dependencies are excluded |
+| `manifest.json` | Home Assistant integration manifest | Reads the `requirements` array |
+| `requirements.txt` | pip requirements format | Supports `-r` file includes |
+| `setup.cfg` | `[options] install_requires` | |
+| `Pipfile` | Pipenv | Reads `[packages]` only |
+
+### Version constraints
+
+All standard [PEP 440](https://peps.python.org/pep-0440/) version specifiers are supported:
+
+| Specifier | Example | Meaning |
+|---|---|---|
+| `==` | `requests==2.31.0` | Exact version |
+| `>=` | `requests>=2.28.0` | Minimum version |
+| `<=`, `>`, `<` | `click<9.0` | Upper/lower bounds |
+| `!=` | `requests!=2.29.0` | Exclude a version |
+| `~=` | `requests~=2.28.1` | Compatible release |
+| *(none)* | `requests` | Latest stable version |
+
+Comma-separated constraints (`>=2.28.0,<3.0.0`) are also supported. When no exact version is specified, depsview resolves the latest stable (non-pre-release) version that satisfies all constraints.
+
+## Running tests
+
+```bash
+npm test
+```
+
+## Roadmap
+
+- [ ] Parse dependencies directly from a GitHub repository URL (without cloning locally)

@@ -1,0 +1,15 @@
+{
+  "name": "depsview",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "List all dependencies and subdependencies of a Python project",
+  "bin": {
+    "depsview": "./src/main.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

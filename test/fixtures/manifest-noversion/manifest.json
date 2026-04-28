@@ -1,0 +1,13 @@
+{
+  "domain": "test_integration",
+  "name": "Test Integration",
+  "codeowners": ["@testowner"],
+  "config_flow": true,
+  "dependencies": [],
+  "iot_class": "local_polling",
+  "requirements": [
+    "requests",
+    "click"
+  ],
+  "version": "1.0.0"
+}
