@@ -24,11 +24,18 @@ function setDebug(flag) {
  * Writes a debug message to stderr when debug mode is active.
  * Each message is prefixed with "[debug] " so it is easy to distinguish from
  * normal progress output. No-ops silently when debug mode is disabled.
+ * Uses process.stderr in Node.js; falls back to console.error in a browser.
  * @param {string} message - the message to print
  * @returns {void}
  */
 function debugLog(message) {
-  if (enabled) process.stderr.write(`[debug] ${message}\n`);
+  if (!enabled) return;
+  const line = `[debug] ${message}\n`;
+  if (typeof process !== 'undefined' && process.stderr) {
+    process.stderr.write(line);
+  } else {
+    console.error(line);
+  }
 }
 
 export { setDebug, debugLog };

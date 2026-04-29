@@ -1,0 +1,147 @@
+/**
+ * Tests for the pure utility functions exported from web/app.js.
+ * DOM-manipulation functions (renderResults, appendProgress, etc.) require a
+ * browser environment and cannot be tested with the Node.js test runner.
+ */
+
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { formatNumber, daysSince, sortResults } from '../web/app.js';
+
+// ── formatNumber ───────────────────────────────────────────────────────────────
+
+describe('formatNumber', () => {
+  it('returns "–" for null', () => {
+    assert.equal(formatNumber(null), '–');
+  });
+
+  it('returns "–" for undefined', () => {
+    assert.equal(formatNumber(undefined), '–');
+  });
+
+  it('formats 0 as a string', () => {
+    assert.equal(formatNumber(0), '0');
+  });
+
+  it('formats a plain integer without separators', () => {
+    assert.equal(formatNumber(42), '42');
+  });
+
+  it('formats a four-digit number with a thousand separator', () => {
+    // toLocaleString output is locale-dependent, so just check it contains the digits
+    const result = formatNumber(1234);
+    assert.match(result, /1.234/); // "." matches any separator character (comma or period)
+  });
+
+  it('formats a large number with separators', () => {
+    const result = formatNumber(1_234_567);
+    assert.match(result, /1.234.567/);
+  });
+});
+
+// ── daysSince ──────────────────────────────────────────────────────────────────
+
+describe('daysSince', () => {
+  it('returns Infinity for the sentinel value "unknown"', () => {
+    assert.equal(daysSince('unknown'), Infinity);
+  });
+
+  it('returns Infinity for null', () => {
+    assert.equal(daysSince(null), Infinity);
+  });
+
+  it('returns Infinity for undefined', () => {
+    assert.equal(daysSince(undefined), Infinity);
+  });
+
+  it('returns Infinity for an empty string', () => {
+    assert.equal(daysSince(''), Infinity);
+  });
+
+  it('returns Infinity for an unparseable string', () => {
+    assert.equal(daysSince('not-a-date'), Infinity);
+  });
+
+  it('returns 0 for today', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    assert.equal(daysSince(today), 0);
+  });
+
+  it('returns a positive integer for a past date', () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
+    assert.equal(daysSince(threeDaysAgo), 3);
+  });
+
+  it('returns a large number for an old date', () => {
+    assert.ok(daysSince('2011-01-01') > 3000);
+  });
+});
+
+// ── sortResults ────────────────────────────────────────────────────────────────
+
+describe('sortResults', () => {
+  it('returns an empty array for an empty Map', () => {
+    assert.deepEqual(sortResults(new Map()), []);
+  });
+
+  it('returns a single-entry array unchanged', () => {
+    const map = new Map([['a', { name: 'alpha', releaseDate: '2024-01-01' }]]);
+    assert.equal(sortResults(map).length, 1);
+    assert.equal(sortResults(map)[0].name, 'alpha');
+  });
+
+  it('sorts newest release date first', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', releaseDate: '2023-01-01' }],
+      ['b', { name: 'beta',  releaseDate: '2024-06-01' }],
+      ['c', { name: 'gamma', releaseDate: '2022-03-15' }],
+    ]);
+    const sorted = sortResults(map);
+    assert.equal(sorted[0].name, 'beta');
+    assert.equal(sorted[1].name, 'alpha');
+    assert.equal(sorted[2].name, 'gamma');
+  });
+
+  it('breaks ties alphabetically by name', () => {
+    const map = new Map([
+      ['b', { name: 'beta',  releaseDate: '2024-01-01' }],
+      ['a', { name: 'alpha', releaseDate: '2024-01-01' }],
+    ]);
+    const sorted = sortResults(map);
+    assert.equal(sorted[0].name, 'alpha');
+    assert.equal(sorted[1].name, 'beta');
+  });
+
+  it('sinks "unknown" release dates to the bottom', () => {
+    const map = new Map([
+      ['a', { name: 'alpha',   releaseDate: 'unknown' }],
+      ['b', { name: 'beta',    releaseDate: '2024-01-01' }],
+      ['c', { name: 'gamma',   releaseDate: '2023-06-01' }],
+    ]);
+    const sorted = sortResults(map);
+    assert.equal(sorted[2].name, 'alpha');
+  });
+
+  it('sorts multiple "unknown" entries alphabetically among themselves', () => {
+    const map = new Map([
+      ['b', { name: 'zeta',  releaseDate: 'unknown' }],
+      ['a', { name: 'alpha', releaseDate: 'unknown' }],
+      ['c', { name: 'mu',    releaseDate: 'unknown' }],
+    ]);
+    const sorted = sortResults(map);
+    assert.equal(sorted[0].name, 'alpha');
+    assert.equal(sorted[1].name, 'mu');
+    assert.equal(sorted[2].name, 'zeta');
+  });
+
+  it('does not mutate the input Map', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', releaseDate: '2023-01-01' }],
+      ['b', { name: 'beta',  releaseDate: '2024-01-01' }],
+    ]);
+    const originalOrder = [...map.values()].map(v => v.name);
+    sortResults(map);
+    const afterOrder = [...map.values()].map(v => v.name);
+    assert.deepEqual(originalOrder, afterOrder);
+  });
+});

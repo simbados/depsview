@@ -10,7 +10,7 @@
 import { fetchPackageInfo, fetchVersionInfo, getVersionList, getReleaseDate, getReleaseCount, getFirstReleaseDate, normalizePackageName } from './pypiClient.js';
 import { fetchDownloadStats } from './pypiStatsClient.js';
 import { resolveVersion } from './versionResolver.js';
-import { parseRequiresDist } from './parser.js';
+import { parseRequiresDist } from './parserCore.js';
 
 const CONCURRENCY = 5;
 
@@ -177,6 +177,7 @@ async function resolveDependencies(directDeps, opts = {}) {
   // Only runs when the caller opts in via downloadStats: true.
   // Runs after the BFS so all packages are known upfront and every stats request
   // can fire in parallel without competing with the critical-path resolution work.
+  console.log('fetch stats', downloadStats)
   if (downloadStats) {
     onProgress?.('\nFetching download statistics...');
     const statsSemaphore = new Semaphore(CONCURRENCY);
@@ -197,6 +198,8 @@ async function resolveDependencies(directDeps, opts = {}) {
       result.downloadsLastMonth = null;
     }
   }
+   
+  console.log('okay')
 
   return results;
 }

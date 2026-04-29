@@ -17,7 +17,7 @@ import {
   parseManifestJson,
   parseSetupCfg,
   parsePipfile,
-} from './parser.js';
+} from './parserCore.js';
 import { normalizePackageName } from './pypiClient.js';
 import { isTestDirectory, isTestRequirementsFile } from './testFilter.js';
 
@@ -232,11 +232,11 @@ async function parseGithubDependencies({ owner, repo, ref, subpath }, options = 
       .filter(({ content }) => content !== null)
       .map(async ({ name, filePath, dirPath, content }) => {
         const baseDir = dirPath || '';
-        if (name === 'pyproject.toml')     return { filePath, deps: parsePyprojectToml(content) };
+        if (name === 'pyproject.toml')     return { filePath, deps: parsePyprojectToml(content, includeTests) };
         if (name === 'manifest.json')      return { filePath, deps: parseManifestJson(content) };
         if (name === 'requirements.txt')   return { filePath, deps: await parseRequirementsTxtAsync(content, owner, repo, baseDir, ref, new Set([filePath]), includeTests) };
         if (name === 'setup.cfg')          return { filePath, deps: parseSetupCfg(content) };
-        if (name === 'Pipfile')            return { filePath, deps: parsePipfile(content) };
+        if (name === 'Pipfile')            return { filePath, deps: parsePipfile(content, includeTests) };
         return { filePath, deps: [] };
       })
   );

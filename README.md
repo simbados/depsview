@@ -173,6 +173,22 @@ All standard [PEP 440](https://peps.python.org/pep-0440/) version specifiers are
 
 Comma-separated constraints (`>=2.28.0,<3.0.0`) are also supported. When no exact version is specified, depsview resolves the latest stable (non-pre-release) version that satisfies all constraints.
 
+## Web interface
+
+A browser-based UI is available in the `web/` directory. It calls the GitHub and PyPI APIs directly from the browser — no server-side component or Node.js installation is required.
+
+Open it with the included Go server from the repo root:
+
+```bash
+go run server.go
+# then open http://localhost:8080/web/
+go run server.go -port 9000   # custom port
+```
+
+> **Note:** the page must be served over HTTP (not opened as a `file://` URL) so that browser security policies allow the ES module imports across directories.
+
+The web UI supports the same GitHub URL formats as the CLI with checkboxes for including test/dev dependencies and fetching download statistics. Only the target directory and up to two levels of subdirectories are scanned for dependency files. The results table shows Package, Version, Released, First Release, and Releases columns (plus Downloads/mo when download statistics are enabled) with the same colour coding as the CLI.
+
 ## Running tests
 
 ```bash

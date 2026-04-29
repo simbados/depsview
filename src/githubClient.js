@@ -15,6 +15,31 @@ import { debugLog } from './debugging.js';
 const GITHUB_API = 'https://api.github.com';
 
 /**
+ * Returns the GitHub token from the environment, or undefined when running in
+ * a browser where process is not available.
+ * @returns {string|undefined}
+ */
+function getGithubToken() {
+  return typeof process !== 'undefined' ? process.env?.GITHUB_TOKEN : undefined;
+}
+
+/**
+ * Decodes a base64 string to a UTF-8 string in both Node.js and browsers.
+ * Node.js uses Buffer.from; browsers use atob + TextDecoder.
+ * @param {string} b64 - base64-encoded string (may contain newlines)
+ * @returns {string} decoded UTF-8 string
+ */
+function decodeBase64(b64) {
+  const clean = b64.replace(/\n/g, '');
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(clean, 'base64').toString('utf8');
+  }
+  const binary = atob(clean);
+  const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+/**
  * Builds the HTTP headers for every GitHub API request.
  * Includes the recommended Accept and API-version headers and, when the
  * GITHUB_TOKEN environment variable is set, a Bearer token for authentication.
@@ -26,8 +51,9 @@ function buildHeaders() {
     'User-Agent': 'depsview',
     'X-GitHub-Api-Version': '2022-11-28',
   };
-  if (process.env.GITHUB_TOKEN) {
-    headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const token = getGithubToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 }
@@ -124,7 +150,7 @@ async function fetchFileContent(owner, repo, filePath, ref) {
     return null;
   }
 
-  return Buffer.from(data.content.replace(/\n/g, ''), 'base64').toString('utf8');
+  return decodeBase64(data.content);
 }
 
 export { listDirectory, fetchFileContent };

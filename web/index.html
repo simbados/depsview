@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>depsview</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>depsview</h1>
+    <p class="tagline">Analyse Python dependencies from any public GitHub repository.</p>
+
+    <form id="form" autocomplete="off">
+      <div class="input-row">
+        <input
+          id="url-input"
+          type="url"
+          placeholder="https://github.com/owner/repo"
+          spellcheck="false"
+          required
+        >
+        <button id="submit-btn" type="submit">Analyse</button>
+      </div>
+      <div class="option-row">
+        <input id="include-tests" type="checkbox">
+        <label for="include-tests">Include test &amp; dev dependencies</label>
+      </div>
+      <div class="option-row">
+        <input id="download-stats" type="checkbox">
+        <label for="download-stats">Fetch download statistics (pypistats.org — may hit rate limits)</label>
+      </div>
+    </form>
+
+    <p class="note">
+      The GitHub API allows 60 unauthenticated requests per hour.
+      Large repositories with many transitive dependencies may exhaust this limit.
+      Only the target directory and up to two levels of subdirectories are scanned for dependency files.
+    </p>
+
+    <div id="error" hidden></div>
+    <div id="progress" hidden></div>
+    <div id="results" hidden></div>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
