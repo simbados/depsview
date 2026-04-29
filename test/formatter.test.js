@@ -430,6 +430,83 @@ describe('formatTable', () => {
   });
 });
 
+// ── formatTable — downloadStats: false ───────────────────────────────────────
+
+describe('formatTable — downloadStats: false', () => {
+  /**
+   * When download stats are not fetched the Downloads/mo column header must be absent
+   * so users don't see an empty or misleading column.
+   */
+  test('omits the Downloads/mo column header', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22', downloadsLastMonth: null },
+    ]);
+    const output = captureConsole(() => formatTable(results, new Set(), { downloadStats: false }));
+    assert.ok(!output.includes('Downloads/mo'), 'Downloads/mo header must not appear when downloadStats is false');
+  });
+
+  /**
+   * The five remaining column headers must still be present.
+   */
+  test('still shows Package, Version, Released, First Release, Releases headers', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const output = captureConsole(() => formatTable(results, new Set(), { downloadStats: false }));
+    assert.ok(output.includes('Package'));
+    assert.ok(output.includes('Version'));
+    assert.ok(output.includes('Released'));
+    assert.ok(output.includes('First Release'));
+    assert.ok(output.includes('Releases'));
+  });
+});
+
+// ── formatJson — downloadStats: false ────────────────────────────────────────
+
+describe('formatJson — downloadStats: false', () => {
+  /**
+   * downloadsLastMonth must be omitted entirely from the JSON so machine consumers
+   * don't see a column of null values that could be confused with actual zeros.
+   */
+  test('omits downloadsLastMonth from each entry', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22', downloadsLastMonth: null },
+    ]);
+    const output = captureConsole(() => formatJson(results, { downloadStats: false }));
+    const rows = JSON.parse(output);
+    assert.ok(!('downloadsLastMonth' in rows[0]), 'downloadsLastMonth must not appear in JSON when downloadStats is false');
+  });
+
+  /**
+   * All other fields must still be present.
+   */
+  test('still includes name, version, released, firstReleased, releases', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22', firstReleased: '2011-02-14', releases: 42 },
+    ]);
+    const output = captureConsole(() => formatJson(results, { downloadStats: false }));
+    const rows = JSON.parse(output);
+    assert.ok('name' in rows[0]);
+    assert.ok('version' in rows[0]);
+    assert.ok('released' in rows[0]);
+    assert.ok('firstReleased' in rows[0]);
+    assert.ok('releases' in rows[0]);
+  });
+
+  /**
+   * downloadsLastMonth must be present when downloadStats is true (the default).
+   */
+  test('includes downloadsLastMonth when downloadStats is true', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22', downloadsLastMonth: 1234 },
+    ]);
+    const output = captureConsole(() => formatJson(results, { downloadStats: true }));
+    const rows = JSON.parse(output);
+    assert.ok('downloadsLastMonth' in rows[0]);
+    assert.equal(rows[0].downloadsLastMonth, 1234);
+  });
+});
+
 // ── daysSince ─────────────────────────────────────────────────────────────────
 
 describe('daysSince', () => {

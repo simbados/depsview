@@ -69,11 +69,14 @@ class Semaphore {
  *     case-insensitive and hyphen/underscore/dot-tolerant.
  *
  * @param {Array<{ name: string, versionSpec: string|null }>} directDeps - parsed direct deps
- * @param {{ onProgress?: (msg: string) => void }} [opts]
+ * @param {{ onProgress?: (msg: string) => void, downloadStats?: boolean }} [opts]
+ * @param {boolean} [opts.downloadStats=false] - when true, fetches monthly download counts
+ *   from pypistats.org after the main resolution pass. Defaults to false to avoid
+ *   rate-limit errors when many packages are resolved.
  * @returns {Promise<Map<string, { name: string, version: string, releaseDate: string, releaseCount: number, downloadsLastMonth: number|null, error?: string }>>}
  */
 async function resolveDependencies(directDeps, opts = {}) {
-  const { onProgress } = opts;
+  const { onProgress, downloadStats = false } = opts;
 
   /** @type {Map<string, object>} normalized name → resolved result */
   const results = new Map();
@@ -171,21 +174,29 @@ async function resolveDependencies(directDeps, opts = {}) {
   await Promise.all(directDeps.map(d => fetchOne(d)));
 
   // ── Post-resolution pass: fetch download stats from pypistats.org ──────────
+  // Only runs when the caller opts in via downloadStats: true.
   // Runs after the BFS so all packages are known upfront and every stats request
   // can fire in parallel without competing with the critical-path resolution work.
-  onProgress?.('\nFetching download statistics...');
-  const statsSemaphore = new Semaphore(CONCURRENCY);
+  if (downloadStats) {
+    onProgress?.('\nFetching download statistics...');
+    const statsSemaphore = new Semaphore(CONCURRENCY);
 
-  await Promise.all([...results.values()].map(async (result) => {
-    await statsSemaphore.acquire();
-    let stats;
-    try {
-      stats = await fetchDownloadStats(result.name);
-    } finally {
-      statsSemaphore.release();
+    await Promise.all([...results.values()].map(async (result) => {
+      await statsSemaphore.acquire();
+      let stats;
+      try {
+        stats = await fetchDownloadStats(result.name);
+      } finally {
+        statsSemaphore.release();
+      }
+      result.downloadsLastMonth = stats?.lastMonth ?? null;
+    }));
+  } else {
+    // Explicitly mark every result so downstream formatters see null rather than undefined.
+    for (const result of results.values()) {
+      result.downloadsLastMonth = null;
     }
-    result.downloadsLastMonth = stats?.lastMonth ?? null;
-  }));
+  }
 
   return results;
 }

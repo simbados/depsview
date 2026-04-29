@@ -13,8 +13,8 @@ Node.js 18 or later. No third-party dependencies.
 ## Usage
 
 ```bash
-node src/main.js <path-to-python-project> [--json] [--debug] [--include-tests]
-node src/main.js <github-url> [--json] [--debug] [--include-tests]
+node src/main.js <path-to-python-project> [--json] [--debug] [--include-tests] [--download-stats]
+node src/main.js <github-url> [--json] [--debug] [--include-tests] [--download-stats]
 ```
 
 **Example output:**
@@ -45,7 +45,7 @@ Results are sorted by release date (newest first).
 | Released | Date the resolved version was published |
 | First Release | Date the package first appeared on PyPI |
 | Releases | Total number of published versions (popularity indicator) |
-| Downloads/mo | Downloads in the last 30 days from pypistats.org |
+| Downloads/mo | Downloads in the last 30 days from pypistats.org. Only shown with `--download-stats`. |
 
 ### Color coding
 
@@ -65,6 +65,19 @@ Pass `--json` to get machine-readable output without color codes:
 ```bash
 node src/main.js <path-to-python-project> --json
 ```
+
+### Download statistics
+
+By default depsview skips the [pypistats.org](https://pypistats.org/) API call and omits the Downloads/mo column. This avoids `429 Too Many Requests` errors when resolving projects with many transitive dependencies.
+
+Pass `--download-stats` (or the short alias `--ds`) to enable it:
+
+```bash
+node src/main.js <path-to-python-project> --download-stats
+node src/main.js <github-url> --ds
+```
+
+> **Rate limit:** pypistats.org is a free, public service with no documented rate limit tier. Requests are made in batches of 5 concurrent connections. For projects with a large transitive closure the API may still return 429 errors.
 
 ### Excluding test dependencies (default)
 

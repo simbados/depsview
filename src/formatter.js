@@ -77,8 +77,9 @@ function formatDownloads(count) {
 }
 
 /**
- * Formats the resolved dependency map as a padded plain-text table with six columns:
- * Package, Version, Released, First Release, Releases, and Downloads/mo.
+ * Formats the resolved dependency map as a padded plain-text table.
+ * Default columns: Package, Version, Released, First Release, Releases, Downloads/mo.
+ * The Downloads/mo column is omitted when opts.downloadStats is false.
  * When stdout is a TTY, individual date cells are colored by recency:
  *   "Released" cell      — yellow when the latest version is ≤ 7 days old
  *   "First Release" cell — red    when the package first appeared ≤ 30 days ago
@@ -87,8 +88,11 @@ function formatDownloads(count) {
  * @param {Map<string, { name: string, version: string, releaseDate: string, firstReleaseDate: string, releaseCount: number, downloadsLastMonth: number|null, error?: string }>} results
  * @param {Set<string>} directNames - normalized names of direct (non-transitive) dependencies,
  *   used to report counts at the footer
+ * @param {{ downloadStats?: boolean }} [opts]
+ * @param {boolean} [opts.downloadStats=true] - when false, the Downloads/mo column is omitted
  */
-function formatTable(results, directNames) {
+function formatTable(results, directNames, opts = {}) {
+  const { downloadStats = true } = opts;
   const rows = sortedResults(results);
   if (rows.length === 0) {
     console.log('No dependencies found.');
@@ -96,19 +100,22 @@ function formatTable(results, directNames) {
   }
 
   // Compute column widths based on the widest value in each column
-  const colName   = Math.max(7,  ...rows.map(r => r.name.length))                                + 2;
-  const colVer    = Math.max(7,  ...rows.map(r => r.version.length))                             + 2;
-  const colRel    = Math.max(8,  ...rows.map(r => r.released.length))                            + 2;
-  const colFirst  = Math.max(13, ...rows.map(r => r.firstReleased.length))                       + 2;
-  const colPop    = Math.max(8,  ...rows.map(r => String(r.releases).length))                    + 2;
-  const colDl     = Math.max(12, ...rows.map(r => formatDownloads(r.downloadsLastMonth).length)) + 2;
+  const colName   = Math.max(7,  ...rows.map(r => r.name.length))     + 2;
+  const colVer    = Math.max(7,  ...rows.map(r => r.version.length))   + 2;
+  const colRel    = Math.max(8,  ...rows.map(r => r.released.length))  + 2;
+  const colFirst  = Math.max(13, ...rows.map(r => r.firstReleased.length)) + 2;
+  const colPop    = Math.max(8,  ...rows.map(r => String(r.releases).length)) + 2;
+  const colDl     = downloadStats
+    ? Math.max(12, ...rows.map(r => formatDownloads(r.downloadsLastMonth).length)) + 2
+    : 0;
 
   const pad = (s, n) => String(s).padEnd(n);
   const divider = '-'.repeat(colName + colVer + colRel + colFirst + colPop + colDl);
 
   console.log(
     pad('Package', colName) + pad('Version', colVer) + pad('Released', colRel) +
-    pad('First Release', colFirst) + pad('Releases', colPop) + pad('Downloads/mo', colDl)
+    pad('First Release', colFirst) + pad('Releases', colPop) +
+    (downloadStats ? pad('Downloads/mo', colDl) : '')
   );
   console.log(divider);
 
@@ -117,15 +124,15 @@ function formatTable(results, directNames) {
     // Pad each date cell to its column width first, then apply color.
     // Padding must happen before colorizing because ANSI escape sequences
     // are counted as characters by padEnd and would break alignment.
-    const releasedCell    = applyColor(pad(row.released,      colRel),   daysSince(row.released,      now) <= 7  ? ANSI_YELLOW : null);
-    const firstRelCell    = applyColor(pad(row.firstReleased, colFirst),  daysSince(row.firstReleased, now) <= 30 ? ANSI_RED    : null);
+    const releasedCell = applyColor(pad(row.released,      colRel),   daysSince(row.released,      now) <= 7  ? ANSI_YELLOW : null);
+    const firstRelCell = applyColor(pad(row.firstReleased, colFirst),  daysSince(row.firstReleased, now) <= 30 ? ANSI_RED    : null);
 
     let line = pad(row.name, colName)
       + pad(row.version, colVer)
       + releasedCell
       + firstRelCell
       + pad(row.releases, colPop)
-      + pad(formatDownloads(row.downloadsLastMonth), colDl);
+      + (downloadStats ? pad(formatDownloads(row.downloadsLastMonth), colDl) : '');
     if (row.error) line += `  [${row.error}]`;
     console.log(line);
   }
@@ -138,15 +145,21 @@ function formatTable(results, directNames) {
 
 /**
  * Formats the resolved dependency map as a JSON array and prints it to stdout.
- * Each element has `name`, `version`, `released`, `firstReleased`, `releases`, and
- * `downloadsLastMonth` fields. No ANSI codes are ever included in JSON output.
- * `downloadsLastMonth` is null when stats could not be fetched for that package.
+ * Each element has `name`, `version`, `released`, `firstReleased`, and `releases` fields.
+ * `downloadsLastMonth` is included only when opts.downloadStats is true; omitting it
+ * when downloads were not fetched avoids misleading null values in the output.
+ * No ANSI codes are ever included in JSON output.
  * Packages with resolution errors include an additional `error` field.
  * @param {Map<string, { name: string, version: string, releaseDate: string, firstReleaseDate: string, releaseCount: number, downloadsLastMonth: number|null, error?: string }>} results
+ * @param {{ downloadStats?: boolean }} [opts]
+ * @param {boolean} [opts.downloadStats=true] - when false, downloadsLastMonth is omitted
+ *   from each entry in the output
  */
-function formatJson(results) {
+function formatJson(results, opts = {}) {
+  const { downloadStats = true } = opts;
   const rows = sortedResults(results).map(r => {
-    const obj = { name: r.name, version: r.version, released: r.released, firstReleased: r.firstReleased, releases: r.releases, downloadsLastMonth: r.downloadsLastMonth };
+    const obj = { name: r.name, version: r.version, released: r.released, firstReleased: r.firstReleased, releases: r.releases };
+    if (downloadStats) obj.downloadsLastMonth = r.downloadsLastMonth;
     if (r.error) obj.error = r.error;
     return obj;
   });

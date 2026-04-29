@@ -19,24 +19,25 @@ import { parseGithubDependencies } from './githubParser.js';
 
 /**
  * Parses CLI arguments from process.argv.
- * Expects: node main.js <project-path> [--json] [--debug] [--include-tests]
- * @returns {{ projectPath: string, json: boolean, debug: boolean, includeTests: boolean }}
+ * Expects: node main.js <project-path> [--json] [--debug] [--include-tests] [--download-stats|--ds]
+ * @returns {{ projectPath: string, json: boolean, debug: boolean, includeTests: boolean, downloadStats: boolean }}
  */
 function parseArgs() {
   const args = process.argv.slice(2);
-  const jsonFlag         = args.includes('--json');
-  const debugFlag        = args.includes('--debug');
-  const includeTestsFlag = args.includes('--include-tests');
+  const jsonFlag          = args.includes('--json');
+  const debugFlag         = args.includes('--debug');
+  const includeTestsFlag  = args.includes('--include-tests');
+  const downloadStatsFlag = args.includes('--download-stats') || args.includes('--ds');
   const positional = args.filter(a => !a.startsWith('--'));
 
   if (positional.length === 0) {
-    console.error('Usage: depsview <path-to-python-project|github-url> [--json] [--debug] [--include-tests]');
+    console.error('Usage: depsview <path-to-python-project|github-url> [--json] [--debug] [--include-tests] [--download-stats|--ds]');
     console.error('');
     console.error('Supported dependency files: pyproject.toml, manifest.json, requirements.txt, setup.cfg, Pipfile');
     process.exit(1);
   }
 
-  return { projectPath: positional[0], json: jsonFlag, debug: debugFlag, includeTests: includeTestsFlag };
+  return { projectPath: positional[0], json: jsonFlag, debug: debugFlag, includeTests: includeTestsFlag, downloadStats: downloadStatsFlag };
 }
 
 /**
@@ -46,7 +47,7 @@ function parseArgs() {
  * @returns {Promise<void>}
  */
 async function main() {
-  const { projectPath, json, debug, includeTests } = parseArgs();
+  const { projectPath, json, debug, includeTests, downloadStats } = parseArgs();
   if (debug) setDebug(true);
   const absolutePath = path.resolve(projectPath);
 
@@ -80,6 +81,7 @@ async function main() {
   try {
     results = await resolveDependencies(deps, {
       onProgress: json ? undefined : msg => process.stderr.write(msg + '\n'),
+      downloadStats,
     });
   } catch (err) {
     console.error(`Fatal error during resolution: ${err.message}`);
@@ -90,9 +92,9 @@ async function main() {
 
   // ── Step 3: Format and print output ───────────────────────────────────────
   if (json) {
-    formatJson(results);
+    formatJson(results, { downloadStats });
   } else {
-    formatTable(results, directNames);
+    formatTable(results, directNames, { downloadStats });
   }
 }
 
