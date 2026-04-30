@@ -9,10 +9,10 @@
  * `document` is available (browser context).
  */
 
-import { parseGithubUrl } from '../src/githubUrl.js';
-import { parseGithubDependencies } from '../src/githubParser.js';
-import { resolveDependencies } from '../src/depResolver.js';
-import { setGithubToken } from '../src/githubClient.js';
+import { parseGithubUrl } from './src/githubUrl.js';
+import { parseGithubDependencies } from './src/githubParser.js';
+import { resolveDependencies } from './src/depResolver.js';
+import { setGithubToken } from './src/githubClient.js';
 
 // ── Pure utility functions (exported for testing) ─────────────────────────────
 

@@ -181,12 +181,13 @@ A browser-based UI is available in the `web/` directory. It calls the GitHub and
 Open it with the included Go server from the repo root:
 
 ```bash
+npm run prepare   # creates web/src → src symlink (first time only)
 go run server.go
 # then open http://localhost:8080/web/
 go run server.go -port 9000   # custom port
 ```
 
-> **Note:** the page must be served over HTTP (not opened as a `file://` URL) so that browser security policies allow the ES module imports across directories.
+> **Note:** `npm run prepare` creates a `web/src` symlink so the Go server can resolve the shared `src/` modules. Run it once after cloning. The page must be served over HTTP (not opened as a `file://` URL) so that browser security policies allow the ES module imports.
 
 The web UI supports the same GitHub URL formats as the CLI with a checkbox for including test/dev dependencies. Only the target directory and up to two levels of subdirectories are scanned for dependency files. The results table shows Package, Version, Released, First Release, and Releases columns with the same colour coding as the CLI.
 
