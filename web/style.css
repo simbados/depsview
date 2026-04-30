@@ -15,6 +15,36 @@
 
 * { box-sizing: border-box; }
 
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.site-header h1 { margin: 0; flex: 1; }
+
+.header-logo {
+  display: block;
+  width: 32px;
+  height: 32px;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+
+.header-logo:hover { opacity: 1; }
+
+.header-github {
+  display: block;
+  width: 24px;
+  height: 24px;
+  opacity: 0.5;
+  filter: invert(1);
+  transition: opacity 0.15s;
+}
+
+.header-github:hover { opacity: 0.9; }
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -27,7 +57,8 @@ body {
 main { max-width: 980px; margin: 0 auto; }
 
 h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
-.tagline { color: var(--muted); margin: 0 0 2rem; }
+.tagline { color: var(--muted); margin: 0 0 0.25rem; }
+.tagline-sub { font-size: 0.82rem; color: var(--muted); margin: 0 0 2rem; opacity: 0.75; }
 
 /* ── Form ─────────────────────────────────────────────────────────────────── */
 .input-row {

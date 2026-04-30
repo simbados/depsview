@@ -4,12 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dependency Viewer</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main>
-    <h1>Dependency Viewer</h1>
+    <header class="site-header">
+      <a href="/web/"><img src="logo.svg" alt="Dependency Viewer" class="header-logo"></a>
+      <h1>Dependency Viewer</h1>
+      <a href="https://github.com/simbados/depsview" target="_blank" rel="noopener noreferrer">
+        <img src="github-mark.png" alt="GitHub" class="header-github">
+      </a>
+    </header>
     <p class="tagline">Analyse Python dependencies from any public GitHub repository.</p>
+    <p class="tagline-sub">All processing happens in your browser. The only external calls are to <code>api.github.com</code> and <code>pypi.org</code> — no data is sent to any other server.</p>
 
     <form id="form" autocomplete="off">
       <div class="input-row">
