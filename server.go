@@ -31,9 +31,9 @@ func main() {
 	port := flag.String("port", "8080", "TCP port to listen on")
 	flag.Parse()
 
-	handler := newHandler(".")
+	handler := newHandler("./web")
 
 	addr := ":" + *port
-	fmt.Fprintf(os.Stdout, "Serving depsview at http://localhost%s/web/\n", addr)
+	fmt.Fprintf(os.Stdout, "Serving depsview at http://localhost%s\n", addr)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }
