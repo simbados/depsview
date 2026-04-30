@@ -186,9 +186,9 @@ describe('formatJson', () => {
   });
 
   /**
-   * Each entry must have name, version, released, firstReleased, releases, and downloadsLastMonth fields.
+   * Each entry must have name, version, released, firstReleased, releases, downloadsLastMonth, and link fields.
    */
-  test('each entry has name, version, released, firstReleased, releases, downloadsLastMonth fields', () => {
+  test('each entry has name, version, released, firstReleased, releases, downloadsLastMonth, link fields', () => {
     const results = makeResults([
       { name: 'requests', version: '2.31.0', released: '2023-05-22', firstReleased: '2011-02-14', releases: 42, downloadsLastMonth: 5000000 },
     ]);
@@ -201,6 +201,19 @@ describe('formatJson', () => {
     assert.ok('firstReleased' in rows[0]);
     assert.ok('releases' in rows[0]);
     assert.ok('downloadsLastMonth' in rows[0]);
+    assert.ok('link' in rows[0]);
+  });
+
+  /**
+   * The link field must be the canonical PyPI URL for the package.
+   */
+  test('link field contains the correct PyPI URL', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const output = captureConsole(() => formatJson(results));
+    const rows = JSON.parse(output);
+    assert.equal(rows[0].link, 'https://pypi.org/project/requests/');
   });
 
   /**
@@ -338,9 +351,9 @@ describe('formatTable', () => {
   });
 
   /**
-   * The table header should contain all six column labels including First Release and Downloads/mo.
+   * The table header should contain all seven column labels including First Release, Downloads/mo, and Link.
    */
-  test('table includes all six column headers', () => {
+  test('table includes all seven column headers', () => {
     const results = makeResults([
       { name: 'requests', version: '2.31.0', released: '2023-05-22', firstReleased: '2011-02-14', releases: 42, downloadsLastMonth: 1000 },
     ]);
@@ -351,6 +364,18 @@ describe('formatTable', () => {
     assert.ok(output.includes('First Release'));
     assert.ok(output.includes('Releases'));
     assert.ok(output.includes('Downloads/mo'));
+    assert.ok(output.includes('Link'));
+  });
+
+  /**
+   * The Link column must contain the PyPI URL for each package.
+   */
+  test('Link column contains the PyPI URL for the package', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const output = captureConsole(() => formatTable(results, new Set()));
+    assert.ok(output.includes('https://pypi.org/project/requests/'), `Expected PyPI URL in:\n${output}`);
   });
 
   /**
@@ -478,9 +503,9 @@ describe('formatJson — downloadStats: false', () => {
   });
 
   /**
-   * All other fields must still be present.
+   * All other fields must still be present including link.
    */
-  test('still includes name, version, released, firstReleased, releases', () => {
+  test('still includes name, version, released, firstReleased, releases, link', () => {
     const results = makeResults([
       { name: 'requests', version: '2.31.0', released: '2023-05-22', firstReleased: '2011-02-14', releases: 42 },
     ]);
@@ -491,6 +516,7 @@ describe('formatJson — downloadStats: false', () => {
     assert.ok('released' in rows[0]);
     assert.ok('firstReleased' in rows[0]);
     assert.ok('releases' in rows[0]);
+    assert.ok('link' in rows[0]);
   });
 
   /**

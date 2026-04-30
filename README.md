@@ -40,12 +40,13 @@ Results are sorted by release date (newest first).
 
 | Column | Description |
 |---|---|
-| Package | Package name |
+| Package | Package name (links to pypi.org in the web UI) |
 | Version | Resolved version (latest stable that satisfies the constraint) |
 | Released | Date the resolved version was published |
 | First Release | Date the package first appeared on PyPI |
 | Releases | Total number of published versions (popularity indicator) |
 | Downloads/mo | Downloads in the last 30 days from pypistats.org. Only shown with `--download-stats`. |
+| Link | Direct URL to the package page on pypi.org (CLI only) |
 
 ### Color coding
 
@@ -187,7 +188,13 @@ go run server.go -port 9000   # custom port
 
 > **Note:** the page must be served over HTTP (not opened as a `file://` URL) so that browser security policies allow the ES module imports across directories.
 
-The web UI supports the same GitHub URL formats as the CLI with checkboxes for including test/dev dependencies and fetching download statistics. Only the target directory and up to two levels of subdirectories are scanned for dependency files. The results table shows Package, Version, Released, First Release, and Releases columns (plus Downloads/mo when download statistics are enabled) with the same colour coding as the CLI.
+The web UI supports the same GitHub URL formats as the CLI with a checkbox for including test/dev dependencies. Only the target directory and up to two levels of subdirectories are scanned for dependency files. The results table shows Package, Version, Released, First Release, and Releases columns with the same colour coding as the CLI.
+
+Download statistics are not available in the web UI because pypistats.org does not support cross-origin (CORS) requests from browsers.
+
+### GitHub token in the web UI
+
+The GitHub API allows 60 unauthenticated requests per hour. For larger repositories or to avoid hitting this limit, enter a personal access token in the **GitHub token** field on the page. The token is used only for the current analysis and is never sent anywhere other than `api.github.com`.
 
 ## Running tests
 

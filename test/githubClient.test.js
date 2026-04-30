@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { listDirectory, fetchFileContent } from '../src/githubClient.js';
+import { listDirectory, fetchFileContent, setGithubToken } from '../src/githubClient.js';
 
 /**
  * Builds a minimal Response-shaped object for use as a mocked fetch return value.
@@ -31,6 +31,7 @@ describe('listDirectory', () => {
   afterEach(() => {
     delete globalThis.fetch;
     delete process.env.GITHUB_TOKEN;
+    setGithubToken(null);
   });
 
   it('returns the entry array on a 200 response', async () => {
@@ -160,5 +161,65 @@ describe('fetchFileContent', () => {
   it('throws on a network error', async () => {
     globalThis.fetch = async () => { throw new Error('ETIMEDOUT'); };
     await assert.rejects(() => fetchFileContent('owner', 'repo', 'f.txt', 'main'), /Network error/);
+  });
+});
+
+describe('setGithubToken', () => {
+  /** @type {Record<string,string>|null} */
+  let capturedHeaders;
+
+  afterEach(() => {
+    delete globalThis.fetch;
+    delete process.env.GITHUB_TOKEN;
+    setGithubToken(null);
+    capturedHeaders = null;
+  });
+
+  /**
+   * Setting a token via setGithubToken should include it as the Authorization
+   * Bearer header on the next API request, regardless of process.env.
+   */
+  it('includes the token set via setGithubToken in the Authorization header', async () => {
+    setGithubToken('browser-supplied-token');
+    globalThis.fetch = async (url, opts) => { capturedHeaders = opts.headers; return { status: 200, ok: true, headers: { get: () => null }, json: async () => [] }; };
+    await listDirectory('owner', 'repo', '', 'main');
+    assert.equal(capturedHeaders['Authorization'], 'Bearer browser-supplied-token');
+  });
+
+  /**
+   * The module override should take precedence over GITHUB_TOKEN in process.env
+   * so the browser-supplied token wins even when the env var is also present.
+   */
+  it('override takes precedence over process.env.GITHUB_TOKEN', async () => {
+    process.env.GITHUB_TOKEN = 'env-token';
+    setGithubToken('override-token');
+    globalThis.fetch = async (url, opts) => { capturedHeaders = opts.headers; return { status: 200, ok: true, headers: { get: () => null }, json: async () => [] }; };
+    await listDirectory('owner', 'repo', '', 'main');
+    assert.equal(capturedHeaders['Authorization'], 'Bearer override-token');
+  });
+
+  /**
+   * Calling setGithubToken(null) should clear the override so that subsequent
+   * requests fall back to the environment variable or no token.
+   */
+  it('clears the override when called with null', async () => {
+    setGithubToken('some-token');
+    setGithubToken(null);
+    delete process.env.GITHUB_TOKEN;
+    globalThis.fetch = async (url, opts) => { capturedHeaders = opts.headers; return { status: 200, ok: true, headers: { get: () => null }, json: async () => [] }; };
+    await listDirectory('owner', 'repo', '', 'main');
+    assert.equal(capturedHeaders['Authorization'], undefined);
+  });
+
+  /**
+   * Calling setGithubToken with an empty string should also clear the override.
+   */
+  it('clears the override when called with an empty string', async () => {
+    setGithubToken('some-token');
+    setGithubToken('');
+    delete process.env.GITHUB_TOKEN;
+    globalThis.fetch = async (url, opts) => { capturedHeaders = opts.headers; return { status: 200, ok: true, headers: { get: () => null }, json: async () => [] }; };
+    await listDirectory('owner', 'repo', '', 'main');
+    assert.equal(capturedHeaders['Authorization'], undefined);
   });
 });

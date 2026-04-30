@@ -15,11 +15,31 @@ import { debugLog } from './debugging.js';
 const GITHUB_API = 'https://api.github.com';
 
 /**
- * Returns the GitHub token from the environment, or undefined when running in
- * a browser where process is not available.
+ * Module-level token override. Set by setGithubToken() in browser contexts
+ * where process.env is unavailable. Cleared by passing null/empty string.
+ * @type {string|null}
+ */
+let _tokenOverride = null;
+
+/**
+ * Sets a GitHub personal access token to use for all subsequent API requests.
+ * Intended for browser callers that cannot access process.env.
+ * Pass null or an empty string to clear the override and fall back to the
+ * environment variable (Node.js) or unauthenticated requests (browser).
+ * @param {string|null} token
+ */
+function setGithubToken(token) {
+  _tokenOverride = token || null;
+}
+
+/**
+ * Returns the active GitHub token: the module override (set via setGithubToken)
+ * takes precedence over the GITHUB_TOKEN environment variable.
+ * Returns undefined when neither is set.
  * @returns {string|undefined}
  */
 function getGithubToken() {
+  if (_tokenOverride) return _tokenOverride;
   return typeof process !== 'undefined' ? process.env?.GITHUB_TOKEN : undefined;
 }
 
@@ -153,4 +173,4 @@ async function fetchFileContent(owner, repo, filePath, ref) {
   return decodeBase64(data.content);
 }
 
-export { listDirectory, fetchFileContent };
+export { listDirectory, fetchFileContent, setGithubToken };

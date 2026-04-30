@@ -10,6 +10,7 @@
   --amber-bg: #431407;
   --amber-text: #fcd34d;
   --amber-border: #92400e;
+  --green: #4ade80;
 }
 
 * { box-sizing: border-box; }
@@ -70,6 +71,36 @@ h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
 #submit-btn:hover:not(:disabled) { background: var(--accent-hover); }
 #submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+.token-note {
+  font-size: 0.82rem;
+  color: var(--green);
+  margin: 1rem 0 0;
+}
+
+.storage-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0.25rem 0 0 1.4rem;
+}
+
+.token-row { margin-top: 0.5rem; }
+.token-row input {
+  flex: 1;
+  min-width: 280px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+}
+.token-row input::placeholder { color: var(--muted); }
+.token-row input:focus {
+  outline: 2px solid var(--accent);
+  border-color: var(--accent);
+}
+
 .option-row {
   display: flex;
   align-items: center;
@@ -87,6 +118,14 @@ h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
   color: var(--muted);
   margin: 0.75rem 0 0;
 }
+
+.legend {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.4rem 0 0;
+}
+
+.legend-swatch { font-style: normal; }
 
 /* ── Error banner ─────────────────────────────────────────────────────────── */
 #error {
@@ -157,3 +196,7 @@ tbody tr:hover td { background: #273548; }
 
 /* Package that failed to resolve */
 .row-error td { color: var(--muted); font-style: italic; }
+
+/* PyPI links in the results table */
+table a { color: var(--accent); text-decoration: none; }
+table a:hover { text-decoration: underline; }

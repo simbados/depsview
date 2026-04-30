@@ -52,7 +52,7 @@ function applyColor(cell, color) {
  */
 function sortedResults(results) {
   return [...results.values()]
-    .map(r => ({ name: r.name, version: r.version, released: r.releaseDate, firstReleased: r.firstReleaseDate ?? 'unknown', releases: r.releaseCount ?? 0, downloadsLastMonth: r.downloadsLastMonth ?? null, error: r.error }))
+    .map(r => ({ name: r.name, version: r.version, released: r.releaseDate, firstReleased: r.firstReleaseDate ?? 'unknown', releases: r.releaseCount ?? 0, downloadsLastMonth: r.downloadsLastMonth ?? null, link: `https://pypi.org/project/${r.name}/`, error: r.error }))
     .sort((a, b) => {
       const aUnknown = a.released === 'unknown';
       const bUnknown = b.released === 'unknown';
@@ -108,14 +108,16 @@ function formatTable(results, directNames, opts = {}) {
   const colDl     = downloadStats
     ? Math.max(12, ...rows.map(r => formatDownloads(r.downloadsLastMonth).length)) + 2
     : 0;
+  const colLink   = Math.max(4,  ...rows.map(r => r.link.length)) + 2;
 
   const pad = (s, n) => String(s).padEnd(n);
-  const divider = '-'.repeat(colName + colVer + colRel + colFirst + colPop + colDl);
+  const divider = '-'.repeat(colName + colVer + colRel + colFirst + colPop + colDl + colLink);
 
   console.log(
     pad('Package', colName) + pad('Version', colVer) + pad('Released', colRel) +
     pad('First Release', colFirst) + pad('Releases', colPop) +
-    (downloadStats ? pad('Downloads/mo', colDl) : '')
+    (downloadStats ? pad('Downloads/mo', colDl) : '') +
+    pad('Link', colLink)
   );
   console.log(divider);
 
@@ -132,7 +134,8 @@ function formatTable(results, directNames, opts = {}) {
       + releasedCell
       + firstRelCell
       + pad(row.releases, colPop)
-      + (downloadStats ? pad(formatDownloads(row.downloadsLastMonth), colDl) : '');
+      + (downloadStats ? pad(formatDownloads(row.downloadsLastMonth), colDl) : '')
+      + pad(row.link, colLink);
     if (row.error) line += `  [${row.error}]`;
     console.log(line);
   }
@@ -158,7 +161,7 @@ function formatTable(results, directNames, opts = {}) {
 function formatJson(results, opts = {}) {
   const { downloadStats = true } = opts;
   const rows = sortedResults(results).map(r => {
-    const obj = { name: r.name, version: r.version, released: r.released, firstReleased: r.firstReleased, releases: r.releases };
+    const obj = { name: r.name, version: r.version, released: r.released, firstReleased: r.firstReleased, releases: r.releases, link: r.link };
     if (downloadStats) obj.downloadsLastMonth = r.downloadsLastMonth;
     if (r.error) obj.error = r.error;
     return obj;

@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>depsview</title>
+  <title>Dependency Viewer</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main>
-    <h1>depsview</h1>
+    <h1>Dependency Viewer</h1>
     <p class="tagline">Analyse Python dependencies from any public GitHub repository.</p>
 
     <form id="form" autocomplete="off">
@@ -22,20 +22,39 @@
         >
         <button id="submit-btn" type="submit">Analyse</button>
       </div>
+      <div class="input-row token-row">
+        <input
+          id="token-input"
+          type="password"
+          placeholder="GitHub token (optional — raises rate limit to 5 000 req/hr)"
+          spellcheck="false"
+          autocomplete="off"
+        >
+      </div>
+      <p class="token-note"><strong>Your token is sent only to <code>api.github.com</code> and never transmitted to any other server.</strong></p>
+      <div class="option-row">
+        <input id="remember-token" type="checkbox">
+        <label for="remember-token">Remember token</label>
+      </div>
+      <p class="storage-note" id="storage-note" hidden>
+        Saved in your browser's <strong>local storage</strong> — persists between page visits and is readable by any JavaScript running on this page.
+        Uncheck and submit to remove it.
+      </p>
       <div class="option-row">
         <input id="include-tests" type="checkbox">
         <label for="include-tests">Include test &amp; dev dependencies</label>
-      </div>
-      <div class="option-row">
-        <input id="download-stats" type="checkbox">
-        <label for="download-stats">Fetch download statistics (pypistats.org — may hit rate limits)</label>
       </div>
     </form>
 
     <p class="note">
       The GitHub API allows 60 unauthenticated requests per hour.
-      Large repositories with many transitive dependencies may exhaust this limit.
+      Provide a personal access token above to raise this to 5 000 req/hr and to access private repositories.
       Only the target directory and up to two levels of subdirectories are scanned for dependency files.
+    </p>
+
+    <p class="legend">
+      <span class="legend-swatch age-fresh">■</span> Version released within the last 7 days &nbsp;&nbsp;
+      <span class="legend-swatch age-new">■</span> Package first appeared on PyPI within the last 30 days
     </p>
 
     <div id="error" hidden></div>

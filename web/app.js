@@ -12,6 +12,7 @@
 import { parseGithubUrl } from '../src/githubUrl.js';
 import { parseGithubDependencies } from '../src/githubParser.js';
 import { resolveDependencies } from '../src/depResolver.js';
+import { setGithubToken } from '../src/githubClient.js';
 
 // ── Pure utility functions (exported for testing) ─────────────────────────────
 
@@ -80,13 +81,11 @@ function addCell(row, text) {
  * Populates the results container with a summary line and a dependency table.
  * Applies age-based CSS classes to the Released and First Release cells so they
  * are colour-coded like the CLI output (amber = fresh version, red = new package).
- * When downloadStats is true an additional Downloads/mo column is rendered.
- * @param {HTMLElement} container    - the #results div to populate
- * @param {Array<object>} sorted     - result objects from sortResults()
- * @param {number} directCount       - number of direct (non-transitive) dependencies
- * @param {boolean} downloadStats    - when true, render the Downloads/mo column
+ * @param {HTMLElement} container  - the #results div to populate
+ * @param {Array<object>} sorted   - result objects from sortResults()
+ * @param {number} directCount     - number of direct (non-transitive) dependencies
  */
-function renderResults(container, sorted, directCount, downloadStats) {
+function renderResults(container, sorted, directCount) {
   container.hidden = false;
   container.innerHTML = '';
 
@@ -112,9 +111,7 @@ function renderResults(container, sorted, directCount, downloadStats) {
   // Header row
   const thead = table.createTHead();
   const headerRow = thead.insertRow();
-  const columns = ['Package', 'Version', 'Released', 'First Release', 'Releases'];
-  if (downloadStats) columns.push('Downloads/mo');
-  for (const label of columns) {
+  for (const label of ['Package', 'Version', 'Released', 'First Release', 'Releases']) {
     const th = document.createElement('th');
     th.textContent = label;
     headerRow.appendChild(th);
@@ -125,13 +122,19 @@ function renderResults(container, sorted, directCount, downloadStats) {
   for (const pkg of sorted) {
     const tr = tbody.insertRow();
 
-    addCell(tr, pkg.name);
+    // Package name — linked to its PyPI page
+    const nameTd = tr.insertCell();
+    const a = document.createElement('a');
+    a.href = `https://pypi.org/project/${pkg.name}/`;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = pkg.name;
+    nameTd.appendChild(a);
 
     if (pkg.error) {
       tr.className = 'row-error';
-      // Collapse remaining columns into one to keep the row tidy
       const td = addCell(tr, pkg.version ?? 'error');
-      td.colSpan = downloadStats ? 5 : 4;
+      td.colSpan = 4;
       td.title = pkg.error;
       continue;
     }
@@ -145,7 +148,6 @@ function renderResults(container, sorted, directCount, downloadStats) {
     if (daysSince(pkg.firstReleaseDate) <= 30) firstCell.className = 'age-new';
 
     addCell(tr, formatNumber(pkg.releaseCount ?? 0));
-    if (downloadStats) addCell(tr, formatNumber(pkg.downloadsLastMonth));
   }
 
   container.appendChild(table);
@@ -156,14 +158,46 @@ function renderResults(container, sorted, directCount, downloadStats) {
 // Guard lets the module be imported in Node.js (for testing pure functions)
 // without crashing on missing DOM APIs.
 if (typeof document !== 'undefined') {
-  const form              = document.getElementById('form');
-  const urlInput          = document.getElementById('url-input');
-  const includeTestsCb    = document.getElementById('include-tests');
-  const downloadStatsCb   = document.getElementById('download-stats');
-  const submitBtn         = document.getElementById('submit-btn');
-  const errorDiv          = document.getElementById('error');
-  const progressDiv       = document.getElementById('progress');
-  const resultsDiv        = document.getElementById('results');
+  const form             = document.getElementById('form');
+  const urlInput         = document.getElementById('url-input');
+  const tokenInput       = document.getElementById('token-input');
+  const rememberTokenCb  = document.getElementById('remember-token');
+  const storageNote      = document.getElementById('storage-note');
+  const includeTestsCb   = document.getElementById('include-tests');
+  const submitBtn        = document.getElementById('submit-btn');
+  const errorDiv         = document.getElementById('error');
+  const progressDiv      = document.getElementById('progress');
+  const resultsDiv       = document.getElementById('results');
+
+  /** localStorage key used to persist the GitHub token between page visits. */
+  const TOKEN_STORAGE_KEY = 'depsview.github_token';
+
+  /**
+   * Syncs the storage-note visibility to the current checkbox state.
+   * The note is only shown when "Remember token" is checked so users
+   * always know whether their token is being persisted.
+   */
+  function syncStorageNote() {
+    storageNote.hidden = !rememberTokenCb.checked;
+  }
+
+  // Restore a previously saved token on page load.
+  const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (savedToken) {
+    tokenInput.value = savedToken;
+    rememberTokenCb.checked = true;
+    syncStorageNote();
+  }
+
+  rememberTokenCb.addEventListener('change', () => {
+    syncStorageNote();
+    if (rememberTokenCb.checked) {
+      const token = tokenInput.value.trim();
+      if (token) localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  });
 
   /** Appends a line to the progress log and scrolls to the bottom. */
   function appendProgress(text) {
@@ -189,9 +223,19 @@ if (typeof document !== 'undefined') {
     resultsDiv.hidden = true;
     resultsDiv.innerHTML = '';
 
-    const url           = urlInput.value.trim();
-    const includeTests  = includeTestsCb.checked;
-    const downloadStats = downloadStatsCb.checked;
+    const url          = urlInput.value.trim();
+    const token        = tokenInput.value.trim();
+    const includeTests = includeTestsCb.checked;
+
+    // Persist or clear the token in local storage based on the checkbox.
+    if (rememberTokenCb.checked && token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+
+    // Apply the GitHub token for this run (cleared between runs if field is empty)
+    setGithubToken(token || null);
 
     let githubRef;
     try {
@@ -215,14 +259,13 @@ if (typeof document !== 'undefined') {
 
       const results = await resolveDependencies(deps, {
         onProgress: (msg) => appendProgress(msg + '\n'),
-        downloadStats,
       });
 
       progressDiv.hidden = true;
 
       const sorted = sortResults(results);
       const directCount = sorted.filter(r => directNames.has(r.name.toLowerCase())).length;
-      renderResults(resultsDiv, sorted, directCount, downloadStats);
+      renderResults(resultsDiv, sorted, directCount);
     } catch (err) {
       showError(err.message);
     } finally {

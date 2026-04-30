@@ -1,0 +1,24 @@
+/*
+  # Block everything by default; allow only what the app actually needs.
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com https://pypi.org; img-src 'self'; font-src 'none'; object-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'; frame-ancestors 'none'; base-uri 'self'; upgrade-insecure-requests
+
+  # Prevent MIME-type sniffing.
+  X-Content-Type-Options: nosniff
+
+  # Disallow framing from any origin (belt-and-suspenders with frame-ancestors in CSP).
+  X-Frame-Options: DENY
+
+  # Never send the Referer header to any origin.
+  Referrer-Policy: no-referrer
+
+  # Disable the legacy XSS auditor — it introduces its own vulnerabilities.
+  X-XSS-Protection: 0
+
+  # Prevent cross-origin windows from retaining a reference to this page.
+  Cross-Origin-Opener-Policy: same-origin
+
+  # HSTS — 2 years, include subdomains, eligible for preload list.
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+  # Deny every browser feature the app does not use.
+  Permissions-Policy: accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()
