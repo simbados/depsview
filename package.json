@@ -10,8 +10,8 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "npm run prepare && node --test",
     "build": "rm web/src && cp -r src web/src",
-    "prepare": "ln -sf ../src web/src"
+    "prepare": "rm -rf web/src && ln -s ../src web/src"
   }
 }
