@@ -5,31 +5,35 @@
   --text: #f1f5f9;
   --muted: #94a3b8;
   --accent: #818cf8;
-  --accent-hover: #6366f1;
+  --accent-deep: #6366f1;
+  --accent-hover: #4f46e5;
   --red: #fca5a5;
   --amber-bg: #431407;
   --amber-text: #fcd34d;
   --amber-border: #92400e;
   --green: #4ade80;
+  --glow: 0 0 0 3px rgba(129, 140, 248, 0.25);
 }
 
 * { box-sizing: border-box; }
 
+/* ── Header ───────────────────────────────────────────────────────────────── */
 .site-header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
 }
 
-.site-header h1 { margin: 0; flex: 1; }
+.site-header h1 { margin: 0; width: fit-content; }
+.site-header a:last-child { margin-left: auto; }
 
 .header-logo {
   display: block;
   width: 32px;
   height: 32px;
   opacity: 0.75;
-  transition: opacity 0.15s;
+  transition: opacity 0.2s;
 }
 
 .header-logo:hover { opacity: 1; }
@@ -40,25 +44,36 @@
   height: 24px;
   opacity: 0.5;
   filter: invert(1);
-  transition: opacity 0.15s;
+  transition: opacity 0.2s;
 }
 
 .header-github:hover { opacity: 0.9; }
 
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   margin: 0;
-  padding: 2rem 1rem;
-  line-height: 1.5;
+  padding: 3rem 1.5rem;
+  line-height: 1.6;
 }
 
 main { max-width: 980px; margin: 0 auto; }
 
-h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
-.tagline { color: var(--muted); margin: 0 0 0.25rem; }
-.tagline-sub { font-size: 0.82rem; color: var(--muted); margin: 0 0 2rem; opacity: 0.75; }
+/* 1 — Gradient headline */
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+  background: linear-gradient(90deg, #e879f9 0%, #818cf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.tagline { color: var(--muted); margin: 0 0 0.35rem; font-size: 1rem; }
+.tagline-sub { font-size: 0.82rem; color: var(--muted); margin: 0 0 2.5rem; opacity: 0.75; }
 
 /* ── Form ─────────────────────────────────────────────────────────────────── */
 .input-row {
@@ -68,44 +83,59 @@ h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
   align-items: stretch;
 }
 
-#url-input {
-  flex: 1;
-  min-width: 280px;
-  padding: 0.5rem 0.75rem;
+/* Shared input base */
+#url-input,
+.token-row input {
+  padding: 0.6rem 0.85rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 1rem;
   font-family: inherit;
   color: var(--text);
   background: var(--surface);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-#url-input::placeholder { color: var(--muted); }
+#url-input { flex: 1; min-width: 280px; }
 
-#url-input:focus {
-  outline: 2px solid var(--accent);
+#url-input::placeholder,
+.token-row input::placeholder { color: var(--muted); }
+
+/* 2 — Glowing focus */
+#url-input:focus,
+.token-row input:focus {
+  outline: none;
   border-color: var(--accent);
+  box-shadow: var(--glow);
 }
 
+/* 3 — Gradient button */
 #submit-btn {
-  padding: 0.5rem 1.25rem;
-  background: var(--accent);
+  padding: 0.6rem 1.5rem;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.35);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 1rem;
   font-family: inherit;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition: box-shadow 0.2s, opacity 0.2s;
 }
 
-#submit-btn:hover:not(:disabled) { background: var(--accent-hover); }
-#submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+#submit-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.55);
+  opacity: 0.92;
+}
+
+#submit-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 
 .token-note {
   font-size: 0.82rem;
   color: var(--green);
-  margin: 1rem 0 0;
+  margin: 1.25rem 0 0;
 }
 
 .storage-note {
@@ -114,29 +144,15 @@ h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
   margin: 0.25rem 0 0 1.4rem;
 }
 
-.token-row { margin-top: 0.5rem; }
-.token-row input {
-  flex: 1;
-  min-width: 280px;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-family: inherit;
-  color: var(--text);
-  background: var(--surface);
-}
-.token-row input::placeholder { color: var(--muted); }
-.token-row input:focus {
-  outline: 2px solid var(--accent);
-  border-color: var(--accent);
-}
+/* 4 — Breathing room */
+.token-row { margin-top: 0.75rem; }
+.token-row input { flex: 1; min-width: 280px; font-size: 0.9rem; }
 
 .option-row {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-top: 0.6rem;
+  margin-top: 0.85rem;
   font-size: 0.9rem;
   color: var(--muted);
 }
@@ -147,35 +163,36 @@ h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
 .note {
   font-size: 0.8rem;
   color: var(--muted);
-  margin: 0.75rem 0 0;
+  margin: 1.25rem 0 0;
+  line-height: 1.6;
 }
 
 .legend {
   font-size: 0.8rem;
   color: var(--muted);
-  margin: 0.4rem 0 0;
+  margin: 0.5rem 0 0;
 }
 
 .legend-swatch { font-style: normal; }
 
 /* ── Error banner ─────────────────────────────────────────────────────────── */
 #error {
-  margin-top: 1.5rem;
+  margin-top: 2rem;
   background: var(--amber-bg);
   border: 1px solid var(--amber-border);
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  padding: 0.85rem 1.1rem;
   color: var(--amber-text);
   font-size: 0.95rem;
 }
 
 /* ── Progress log ─────────────────────────────────────────────────────────── */
 #progress {
-  margin-top: 1.5rem;
+  margin-top: 2rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  padding: 0.85rem 1.1rem;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 0.82rem;
   color: var(--muted);
@@ -186,12 +203,12 @@ h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
 }
 
 /* ── Results ──────────────────────────────────────────────────────────────── */
-#results { margin-top: 1.5rem; }
+#results { margin-top: 2rem; }
 
 .summary {
   font-size: 0.88rem;
   color: var(--muted);
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.85rem;
 }
 
 table {
@@ -200,7 +217,7 @@ table {
   font-size: 0.88rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -208,13 +225,13 @@ thead tr { border-bottom: 2px solid var(--border); }
 
 th {
   text-align: left;
-  padding: 0.55rem 0.85rem;
+  padding: 0.65rem 0.9rem;
   font-weight: 600;
   white-space: nowrap;
   color: var(--muted);
 }
 
-td { padding: 0.45rem 0.85rem; border-bottom: 1px solid var(--border); }
+td { padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border); }
 
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: #273548; }
