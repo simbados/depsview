@@ -7,7 +7,7 @@
 
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveDependencies } from '../src/depResolver.js';
+import { resolveDependencies } from '../../src/python/depResolver.js';
 
 /**
  * Builds a minimal PyPI JSON response for a leaf package (no transitive deps).

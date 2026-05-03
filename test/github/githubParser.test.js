@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseGithubDependencies, resolvePath, mergeDeps } from '../src/githubParser.js';
+import { parseGithubDependencies, resolvePath, mergeDeps } from '../../src/github/parser.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

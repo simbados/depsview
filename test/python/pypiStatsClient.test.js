@@ -7,7 +7,7 @@
 
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchDownloadStats, _clearCache } from '../src/pypiStatsClient.js';
+import { fetchDownloadStats, _clearCache } from '../../src/python/pypiStatsClient.js';
 
 /** Saves the real global fetch so we can restore it after each test. */
 const realFetch = globalThis.fetch;

@@ -14,7 +14,7 @@ import {
   parseSetupCfg,
   parsePipfile,
   parseManifestJson,
-} from '../src/parserCore.js';
+} from '../../src/python/parserCore.js';
 
 // ── parseDependencyString ──────────────────────────────────────────────────────
 

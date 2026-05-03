@@ -7,7 +7,7 @@
  * When debug mode is enabled via src/debug.js, HTTP errors are logged to stderr.
  */
 
-import { debugLog } from './debugging.js';
+import { debugLog } from '../util/debugging.js';
 
 /** @type {Map<string, { lastMonth: number }|null>} cache keyed by normalized package name */
 const cache = new Map();

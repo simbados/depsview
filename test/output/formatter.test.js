@@ -6,7 +6,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTable, formatJson, daysSince, ANSI_RED, ANSI_YELLOW } from '../src/formatter.js';
+import { formatTable, formatJson, daysSince, ANSI_RED, ANSI_YELLOW } from '../../src/output/formatter.js';
 
 /**
  * Temporarily replaces console.log, runs fn(), then restores it.

@@ -6,7 +6,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveVersion, parseVersionSpec, parseVersion, isPreRelease } from '../src/versionResolver.js';
+import { resolveVersion, parseVersionSpec, parseVersion, isPreRelease } from '../../src/python/versionResolver.js';
 
 /**
  * A realistic mock version list covering stable releases, pre-releases, and post-releases.

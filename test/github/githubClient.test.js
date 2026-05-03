@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { listDirectory, fetchFileContent, setGithubToken } from '../src/githubClient.js';
+import { listDirectory, fetchFileContent, setGithubToken } from '../../src/github/client.js';
 
 /**
  * Builds a minimal Response-shaped object for use as a mocked fetch return value.

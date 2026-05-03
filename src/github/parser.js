@@ -10,16 +10,16 @@
  * combined constraint (e.g. ">=2.28" + "<3.0" → ">=2.28,<3.0").
  */
 
-import { listDirectory, fetchFileContent } from './githubClient.js';
+import { listDirectory, fetchFileContent } from './client.js';
 import {
   parseDependencyString,
   parsePyprojectToml,
   parseManifestJson,
   parseSetupCfg,
   parsePipfile,
-} from './parserCore.js';
-import { normalizePackageName } from './pypiClient.js';
-import { isTestDirectory, isTestRequirementsFile } from './testFilter.js';
+} from '../python/parserCore.js';
+import { normalizePackageName } from '../python/pypiClient.js';
+import { isTestDirectory, isTestRequirementsFile } from '../python/testFilter.js';
 
 /** Recognised dependency filenames, checked case-sensitively against the repo listing. */
 const DEP_FILENAMES = new Set(['pyproject.toml', 'manifest.json', 'requirements.txt', 'setup.cfg', 'Pipfile']);

@@ -9,13 +9,13 @@
  */
 
 import path from 'node:path';
-import { parseDependencyFile } from './parser.js';
-import { resolveDependencies } from './depResolver.js';
-import { normalizePackageName } from './pypiClient.js';
-import { formatTable, formatJson } from './formatter.js';
-import { setDebug } from './debugging.js';
-import { isGithubUrl, parseGithubUrl } from './githubUrl.js';
-import { parseGithubDependencies } from './githubParser.js';
+import { parseDependencyFile } from './python/parser.js';
+import { resolveDependencies } from './python/depResolver.js';
+import { normalizePackageName } from './python/pypiClient.js';
+import { formatTable, formatJson } from './output/formatter.js';
+import { setDebug } from './util/debugging.js';
+import { isGithubUrl, parseGithubUrl } from './github/url.js';
+import { parseGithubDependencies } from './github/parser.js';
 
 /**
  * Parses CLI arguments from process.argv.

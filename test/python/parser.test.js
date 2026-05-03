@@ -10,10 +10,10 @@ import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseDependencyFile, parseRequiresDist, parseDependencyString, parsePyprojectToml, parsePipfile } from '../src/parser.js';
+import { parseDependencyFile, parseRequiresDist, parseDependencyString, parsePyprojectToml, parsePipfile } from '../../src/python/parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fixtures = path.join(__dirname, 'fixtures');
+const fixtures = path.join(__dirname, '../fixtures');
 
 // ── parseDependencyString ─────────────────────────────────────────────────────
 

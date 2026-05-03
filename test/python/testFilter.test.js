@@ -5,7 +5,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isTestDirectory, isTestRequirementsFile } from '../src/testFilter.js';
+import { isTestDirectory, isTestRequirementsFile } from '../../src/python/testFilter.js';
 
 // ── isTestDirectory ───────────────────────────────────────────────────────────
 

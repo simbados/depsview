@@ -10,7 +10,7 @@
  * When debug mode is active (src/debugging.js), API errors are logged to stderr.
  */
 
-import { debugLog } from './debugging.js';
+import { debugLog } from '../util/debugging.js';
 
 const GITHUB_API = 'https://api.github.com';
 

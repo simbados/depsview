@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isGithubUrl, parseGithubUrl } from '../src/githubUrl.js';
+import { isGithubUrl, parseGithubUrl } from '../../src/github/url.js';
 
 describe('isGithubUrl', () => {
   it('returns true for a plain https github.com URL', () => {

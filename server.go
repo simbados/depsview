@@ -26,14 +26,15 @@ func newHandler(dir string) http.Handler {
 	return http.FileServer(http.Dir(dir))
 }
 
-// main parses the -port flag, starts the file server, and prints the URL.
+// main parses the -port and -dir flags, starts the file server, and prints the URL.
 func main() {
 	port := flag.String("port", "8080", "TCP port to listen on")
+	dir  := flag.String("dir", "./web", "Directory to serve")
 	flag.Parse()
 
-	handler := newHandler("./web")
+	handler := newHandler(*dir)
 
 	addr := ":" + *port
-	fmt.Fprintf(os.Stdout, "Serving depsview at http://localhost%s\n", addr)
+	fmt.Fprintf(os.Stdout, "Serving %s at http://localhost%s\n", *dir, addr)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }
