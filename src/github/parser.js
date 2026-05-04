@@ -11,6 +11,8 @@
  */
 
 import { listDirectory, fetchFileContent } from './client.js';
+import { parsePackageJson } from '../npm/parserCore.js';
+import { parsePackageLock } from '../npm/lockParser.js';
 import {
   parseDependencyString,
   parsePyprojectToml,
@@ -247,4 +249,49 @@ async function parseGithubDependencies({ owner, repo, ref, subpath }, options = 
   };
 }
 
-export { parseGithubDependencies, resolvePath, mergeDeps };
+/**
+ * Parses npm dependencies from a GitHub repository.
+ * Checks the starting directory for package-lock.json first (preferred),
+ * then falls back to package.json. No directory traversal is performed;
+ * pass a subpath to point at a nested package root.
+ *
+ * @param {{ owner: string, repo: string, ref: string, subpath: string }} githubRef
+ * @param {{ includeTests?: boolean }} [options]
+ * @returns {Promise<{ deps: Array<{ name: string, version?: string, versionSpec?: string|null }>, source: string }>}
+ */
+async function parseGithubNpmDependencies({ owner, repo, ref, subpath }, options = {}) {
+  const { includeTests = false } = options;
+
+  const listing = await listDirectory(owner, repo, subpath, ref);
+  if (!listing) {
+    const dir = subpath || '/';
+    throw new Error(`Directory not found: ${dir} in ${owner}/${repo} at ref "${ref}"`);
+  }
+
+  const fileNames = new Set(
+    listing.filter(e => e.type === 'file').map(e => e.name)
+  );
+
+  const preferred = fileNames.has('package-lock.json') ? 'package-lock.json'
+    : fileNames.has('package.json')                    ? 'package.json'
+    : null;
+
+  if (!preferred) {
+    const location = subpath ? `${owner}/${repo}/${subpath}` : `${owner}/${repo}`;
+    throw new Error(`No npm dependency file found in ${location} (ref: ${ref}). Looked for: package-lock.json, package.json`);
+  }
+
+  const filePath = subpath ? `${subpath}/${preferred}` : preferred;
+  const content  = await fetchFileContent(owner, repo, filePath, ref);
+  if (!content) {
+    throw new Error(`Failed to fetch ${filePath} from ${owner}/${repo}`);
+  }
+
+  const deps = preferred === 'package-lock.json'
+    ? parsePackageLock(content, includeTests)
+    : parsePackageJson(content, includeTests);
+
+  return { deps, source: preferred };
+}
+
+export { parseGithubDependencies, parseGithubNpmDependencies, resolvePath, mergeDeps };

@@ -16,8 +16,8 @@
         <img src="github-mark.png" alt="GitHub" class="header-github">
       </a>
     </header>
-    <p class="tagline">Analyse Python dependencies from any public GitHub repository.</p>
-    <p class="tagline-sub">All processing happens in your browser. The only external calls are to <code>api.github.com</code> and <code>pypi.org</code> — no data is sent to any other server.</p>
+    <p class="tagline">Analyse Python and npm dependencies from any public GitHub repository.</p>
+    <p class="tagline-sub">All processing happens in your browser. The only external calls are to <code>api.github.com</code>, <code>pypi.org</code>, and <code>registry.npmjs.org</code> — no data is sent to any other server.</p>
 
     <form id="form" autocomplete="off">
       <div class="input-row">
@@ -62,7 +62,7 @@
 
     <p class="legend">
       <span class="legend-swatch age-fresh">■</span> Version released within the last 7 days &nbsp;&nbsp;
-      <span class="legend-swatch age-new">■</span> Package first appeared on PyPI within the last 30 days
+      <span class="legend-swatch age-new">■</span> Package first appeared on its registry within the last 30 days
     </p>
 
     <div id="error" hidden></div>

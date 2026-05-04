@@ -1,10 +1,10 @@
 # depsview
 
-Lists all dependencies and transitive dependencies of a Python project. For each package it shows the resolved version, release dates, total number of published versions, and monthly download count. All data is fetched live — no local Python installation required.
+Lists all dependencies and transitive dependencies of a Python or npm project. For each package it shows the resolved version, release dates, and total number of published versions. All data is fetched live — no local Python or Node.js installation required.
 
 Built with [Claude Code](https://claude.ai/code).
 
-**Data sources:** package metadata from [PyPI](https://pypi.org/), download statistics from [pypistats.org](https://pypistats.org/).
+**Data sources:** [PyPI](https://pypi.org/) for Python packages, [registry.npmjs.org](https://registry.npmjs.org) for npm packages, [api.github.com](https://docs.github.com/en/rest) for GitHub URL support, [pypistats.org](https://pypistats.org/) for Python download statistics (optional).
 
 ## Requirements
 
@@ -13,121 +13,107 @@ Node.js 18 or later. No third-party dependencies.
 ## Usage
 
 ```bash
-node src/main.js <path-to-python-project> [--json] [--debug] [--include-tests] [--download-stats]
-node src/main.js <github-url> [--json] [--debug] [--include-tests] [--download-stats]
+node src/main.js <path-to-project|github-url> [options]
 ```
 
-**Example output:**
+The ecosystem (Python or npm) is **auto-detected** from the files present. Use `--npm` or `--python` to override when both are present.
+
+```bash
+# Auto-detect
+node src/main.js ./my-python-project
+node src/main.js ./my-node-project
+node src/main.js https://github.com/owner/repo
+
+# Explicit ecosystem
+node src/main.js ./mixed-repo --npm
+node src/main.js ./mixed-repo --python
+```
+
+**Example output (npm):**
 
 ```
-Resolving dependencies from requirements.txt (2 direct)...
+Resolving npm dependencies from package-lock.json (142 installed)...
 
-Package             Version   Released     First Release  Releases  Downloads/mo
----------------------------------------------------------------------------------
-certifi             2024.2.2  2024-02-02   2011-09-30     29        12,345,678
-urllib3             2.2.1     2024-02-18   2008-12-28     87        34,567,890
-idna                3.6       2023-11-25   2013-07-03     22        28,901,234
-requests            2.31.0    2023-05-22   2011-02-14     144       56,789,012
-charset-normalizer  3.3.2     2023-10-05   2021-08-16     57        18,234,567
-click               8.1.7     2023-08-17   2014-06-06     72        9,876,543
----------------------------------------------------------------------------------
-6 packages total  (2 direct, 4 transitive)
+Package     Version   Released     First Release  Releases  Link
+------------------------------------------------------------------
+vite        5.1.0     2024-02-08   2020-04-25     89        https://www.npmjs.com/package/vite
+lodash      4.17.21   2021-02-20   2012-01-13     116       https://www.npmjs.com/package/lodash
+eslint      8.57.0    2024-02-24   2013-06-23     312       https://www.npmjs.com/package/eslint
+------------------------------------------------------------------
+142 packages total
+```
+
+**Example output (Python):**
+
+```
+Resolving python dependencies from requirements.txt (2 direct)...
+
+Package   Version   Released     First Release  Releases  Link
+---------------------------------------------------------------
+requests  2.31.0    2023-05-22   2011-02-14     144       https://pypi.org/project/requests/
+certifi   2024.2.2  2024-02-02   2011-09-30     29        https://pypi.org/project/certifi/
+---------------------------------------------------------------
+2 packages total  (2 direct, 0 transitive)
 ```
 
 Results are sorted by release date (newest first).
 
-### Output columns
+## Flags
 
-| Column | Description |
+| Flag | Description |
 |---|---|
-| Package | Package name (links to pypi.org in the web UI) |
-| Version | Resolved version (latest stable that satisfies the constraint) |
-| Released | Date the resolved version was published |
-| First Release | Date the package first appeared on PyPI |
-| Releases | Total number of published versions (popularity indicator) |
-| Downloads/mo | Downloads in the last 30 days from pypistats.org. Only shown with `--download-stats`. |
-| Link | Direct URL to the package page on pypi.org (CLI only) |
+| `--npm` | Force npm ecosystem |
+| `--python` | Force Python ecosystem |
+| `--include-tests` | Include dev/test dependencies |
+| `--json` | Machine-readable JSON output |
+| `--download-stats` / `--ds` | Fetch Python download counts from pypistats.org (Python only) |
+| `--debug` | Print API errors and warnings to stderr |
 
-### Color coding
+## npm support
 
-When the output is a terminal (not piped), individual date cells are highlighted:
+### Lock file (preferred)
 
-| Color | Cell | Meaning |
+When a `package-lock.json` is present, depsview reads the complete list of installed packages directly from it — no recursive registry traversal needed. Packages flagged `"dev": true` are excluded unless `--include-tests` is passed.
+
+Supports lockfileVersion 1, 2, and 3.
+
+### package.json fallback
+
+When no lock file is found, depsview reads `package.json` and recursively resolves all transitive dependencies from the npm registry, following each package's `dependencies` field.
+
+### Scoped packages
+
+Scoped package names (e.g. `@babel/core`, `@types/node`) are fully supported throughout.
+
+### devDependencies
+
+Pass `--include-tests` to include `devDependencies` alongside `dependencies`.
+
+## Python support
+
+### Supported dependency file formats
+
+| File | Format | Notes |
 |---|---|---|
-| Red | First Release | Package first appeared on PyPI within the last 30 days — may be immature or untrusted |
-| Yellow | Released | The resolved version was published within the last 7 days — freshly updated |
+| `pyproject.toml` | PEP 621 `[project] dependencies` or Poetry `[tool.poetry.dependencies]` | Optional deps excluded |
+| `manifest.json` | Home Assistant integration manifest | Reads `requirements` array |
+| `requirements.txt` | pip requirements format | Supports `-r` file includes |
+| `setup.cfg` | `[options] install_requires` | |
+| `Pipfile` | Pipenv | Reads `[packages]` only |
 
-Both cells on the same row can be colored independently. No color codes are emitted when output is piped or redirected.
+All matching files are parsed and merged. When the same package appears in multiple files its version constraints are combined.
 
-### JSON output
+### Version constraints
 
-Pass `--json` to get machine-readable output without color codes:
-
-```bash
-node src/main.js <path-to-python-project> --json
-```
+All standard [PEP 440](https://peps.python.org/pep-0440/) specifiers are supported: `==`, `>=`, `<=`, `>`, `<`, `!=`, `~=`, and bare package names (resolves to latest stable).
 
 ### Download statistics
 
-By default depsview skips the [pypistats.org](https://pypistats.org/) API call and omits the Downloads/mo column. This avoids `429 Too Many Requests` errors when resolving projects with many transitive dependencies.
-
-Pass `--download-stats` (or the short alias `--ds`) to enable it:
-
-```bash
-node src/main.js <path-to-python-project> --download-stats
-node src/main.js <github-url> --ds
-```
-
-> **Rate limit:** pypistats.org is a free, public service with no documented rate limit tier. Requests are made in batches of 5 concurrent connections. For projects with a large transitive closure the API may still return 429 errors.
-
-### Excluding test dependencies (default)
-
-By default depsview skips test and developer tooling dependencies so the output reflects only the runtime requirements of the project:
-
-- **Test directories** — subdirectories named `test`, `tests`, `testing`, `e2e`, or `integration_tests` are not traversed when scanning a GitHub repository.
-- **Test requirement files** — `-r` includes whose filename contains a word segment matching `test`, `tests`, `testing`, `dev`, `lint`, `docs`, or `ci` (e.g. `requirements-test.txt`, `dev-requirements.txt`, `ci.txt`) are skipped.
-- **Poetry dev-deps** — `[tool.poetry.dev-dependencies]` and `[tool.poetry.group.<name>.dependencies]` sections in `pyproject.toml` are ignored.
-- **Pipenv dev-packages** — `[dev-packages]` in a `Pipfile` is ignored.
-
-Pass `--include-tests` to disable all of the above filtering and include every dependency:
-
-```bash
-node src/main.js <path-to-python-project> --include-tests
-node src/main.js <github-url> --include-tests
-```
-
-### Debug mode
-
-Pass `--debug` to print API errors and warnings to stderr while fetching. Useful when a package shows `-` for Downloads/mo or an unexpected version is resolved:
-
-```bash
-node src/main.js <path-to-python-project> --debug
-```
-
-Debug output lines are prefixed with `[debug]` and always go to stderr, so they do not interfere with `--json` output or piped table output. Both flags can be combined:
-
-```bash
-node src/main.js <path-to-python-project> --json --debug
-```
-
-```json
-[
-  {
-    "name": "requests",
-    "version": "2.31.0",
-    "released": "2023-05-22",
-    "firstReleased": "2011-02-14",
-    "releases": 144,
-    "downloadsLastMonth": 56789012
-  }
-]
-```
-
-`downloadsLastMonth` is `null` when pypistats.org has no data for that package.
+Pass `--download-stats` (or `--ds`) to also fetch monthly download counts from [pypistats.org](https://pypistats.org/). Disabled by default to avoid rate-limit errors on large projects.
 
 ## GitHub URL support
 
-Pass a GitHub repository URL instead of a local path to analyse a remote project without cloning it:
+Pass a GitHub repository URL instead of a local path:
 
 ```bash
 node src/main.js https://github.com/owner/repo
@@ -135,71 +121,95 @@ node src/main.js https://github.com/owner/repo/tree/main
 node src/main.js https://github.com/owner/repo/tree/main/subfolder
 ```
 
-depsview searches the target directory and up to **two levels of subdirectories** for dependency files. This means root-level files (`pyproject.toml`, `requirements.txt`, …) and nested files such as a Home Assistant `custom_components/<integration>/manifest.json` are all discovered and merged into a single run.
+Ecosystem is auto-detected from the root directory listing. Python projects are traversed up to two levels deep; npm projects are read from the specified directory only.
 
-When the same package is declared in more than one file its version constraints are combined (e.g. `>=2.28` from `pyproject.toml` and `<3.0` from `requirements.txt` become `>=2.28,<3.0`).
-
-**Authentication:** the GitHub API allows 60 unauthenticated requests per hour. For private repositories or to increase the limit to 5 000 requests/hour, set the `GITHUB_TOKEN` environment variable:
+**Authentication:** the GitHub API allows 60 unauthenticated requests/hour. Set `GITHUB_TOKEN` for private repos or to raise the limit to 5 000/hour:
 
 ```bash
 GITHUB_TOKEN=ghp_... node src/main.js https://github.com/owner/private-repo
 ```
 
-## Supported dependency file formats
+## Output columns
 
-depsview finds all of the following files and parses every one it finds:
+| Column | Description |
+|---|---|
+| Package | Package name (links to registry page in web UI) |
+| Version | Resolved version |
+| Released | Date the resolved version was published |
+| First Release | Date the package first appeared on its registry |
+| Releases | Total number of published versions |
+| Downloads/mo | Python only, with `--download-stats` |
+| Link | Registry page URL (CLI only) |
 
-| File | Format | Notes |
+### Color coding (CLI)
+
+| Color | Cell | Meaning |
 |---|---|---|
-| `pyproject.toml` | PEP 621 `[project] dependencies` or Poetry `[tool.poetry.dependencies]` | Optional dependencies are excluded |
-| `manifest.json` | Home Assistant integration manifest | Reads the `requirements` array |
-| `requirements.txt` | pip requirements format | Supports `-r` file includes |
-| `setup.cfg` | `[options] install_requires` | |
-| `Pipfile` | Pipenv | Reads `[packages]` only |
+| Yellow | Released | Version published within the last 7 days |
+| Red | First Release | Package first appeared within the last 30 days |
 
-All matching files are parsed and their dependency lists are merged.
+No color codes are emitted when output is piped or redirected.
 
-### Version constraints
+### JSON output
 
-All standard [PEP 440](https://peps.python.org/pep-0440/) version specifiers are supported:
+```bash
+node src/main.js <path-or-url> --json
+```
 
-| Specifier | Example | Meaning |
-|---|---|---|
-| `==` | `requests==2.31.0` | Exact version |
-| `>=` | `requests>=2.28.0` | Minimum version |
-| `<=`, `>`, `<` | `click<9.0` | Upper/lower bounds |
-| `!=` | `requests!=2.29.0` | Exclude a version |
-| `~=` | `requests~=2.28.1` | Compatible release |
-| *(none)* | `requests` | Latest stable version |
+```json
+[
+  {
+    "name": "lodash",
+    "version": "4.17.21",
+    "released": "2021-02-20",
+    "firstReleased": "2012-01-13",
+    "releases": 116,
+    "link": "https://www.npmjs.com/package/lodash"
+  }
+]
+```
 
-Comma-separated constraints (`>=2.28.0,<3.0.0`) are also supported. When no exact version is specified, depsview resolves the latest stable (non-pre-release) version that satisfies all constraints.
+## Excluding test dependencies
+
+By default the following are excluded (Python):
+
+- **Test directories** — `test`, `tests`, `testing`, `e2e`, `integration_tests` are not traversed on GitHub.
+- **Test requirement files** — `-r` includes matching `test`, `dev`, `lint`, `docs`, `ci` are skipped.
+- **Poetry dev-deps** — `[tool.poetry.dev-dependencies]` and group sections.
+- **Pipenv dev-packages** — `[dev-packages]` in `Pipfile`.
+
+For npm: `devDependencies` in `package.json` and packages flagged `"dev": true` in the lock file are excluded.
+
+Pass `--include-tests` to disable all filtering.
 
 ## Web interface
 
-A browser-based UI is available in the `web/` directory. It calls the GitHub and PyPI APIs directly from the browser — no server-side component or Node.js installation is required.
-
-Open it with the included Go server from the repo root:
+Open the browser UI with the Go server from the repo root:
 
 ```bash
 npm run prepare   # creates web/src → src symlink (first time only)
 go run server.go
-# then open http://localhost:8080/web/
+# open http://localhost:8080/web/
 go run server.go -port 9000   # custom port
+go run server.go -dir ./web   # serve a different directory
 ```
 
-> **Note:** `npm run prepare` creates a `web/src` symlink so the Go server can resolve the shared `src/` modules. Run it once after cloning. The page must be served over HTTP (not opened as a `file://` URL) so that browser security policies allow the ES module imports.
-
-The web UI supports the same GitHub URL formats as the CLI with a checkbox for including test/dev dependencies. Only the target directory and up to two levels of subdirectories are scanned for dependency files. The results table shows Package, Version, Released, First Release, and Releases columns with the same colour coding as the CLI.
-
-Download statistics are not available in the web UI because pypistats.org does not support cross-origin (CORS) requests from browsers.
+The web UI supports the same GitHub URL formats as the CLI. It auto-detects the ecosystem and links each package to its registry page (PyPI or npmjs.com). Download statistics are not shown in the web UI because pypistats.org does not support cross-origin (CORS) requests from browsers.
 
 ### GitHub token in the web UI
 
-The GitHub API allows 60 unauthenticated requests per hour. For larger repositories or to avoid hitting this limit, enter a personal access token in the **GitHub token** field on the page. The token is used only for the current analysis and is never sent anywhere other than `api.github.com`.
+Enter a personal access token in the **GitHub token** field. It is used only for `api.github.com` and never sent elsewhere. Check **Remember token** to persist it in `localStorage`.
+
+## Debug mode
+
+```bash
+node src/main.js <path-or-url> --debug
+```
+
+Debug lines are prefixed with `[debug]` and always go to stderr so they don't interfere with `--json` or piped output.
 
 ## Running tests
 
 ```bash
 npm test
 ```
-

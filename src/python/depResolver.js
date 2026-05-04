@@ -114,6 +114,7 @@ async function resolveDependencies(directDeps, opts = {}) {
           releaseDate: 'unknown',
           firstReleaseDate: 'unknown',
           releaseCount: 0,
+          link: `https://pypi.org/project/${dep.name}/`,
           error: 'Package not found on PyPI',
         });
         return;
@@ -141,12 +142,14 @@ async function resolveDependencies(directDeps, opts = {}) {
       const releaseDate = getReleaseDate(packageData, version);
       const firstReleaseDate = getFirstReleaseDate(packageData);
       const releaseCount = getReleaseCount(packageData);
+      const resolvedName = packageData.info.name;
       results.set(key, {
-        name: packageData.info.name,
+        name: resolvedName,
         version,
         releaseDate,
         firstReleaseDate,
         releaseCount,
+        link: `https://pypi.org/project/${resolvedName}/`,
       });
 
       // Parse and enqueue transitive dependencies (skip already-pending ones)
@@ -163,6 +166,7 @@ async function resolveDependencies(directDeps, opts = {}) {
         releaseDate: 'unknown',
         firstReleaseDate: 'unknown',
         releaseCount: 0,
+        link: `https://pypi.org/project/${dep.name}/`,
         error: err.message,
       });
     });

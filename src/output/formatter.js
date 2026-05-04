@@ -52,7 +52,7 @@ function applyColor(cell, color) {
  */
 function sortedResults(results) {
   return [...results.values()]
-    .map(r => ({ name: r.name, version: r.version, released: r.releaseDate, firstReleased: r.firstReleaseDate ?? 'unknown', releases: r.releaseCount ?? 0, downloadsLastMonth: r.downloadsLastMonth ?? null, link: `https://pypi.org/project/${r.name}/`, error: r.error }))
+    .map(r => ({ name: r.name, version: r.version, released: r.releaseDate, firstReleased: r.firstReleaseDate ?? 'unknown', releases: r.releaseCount ?? 0, downloadsLastMonth: r.downloadsLastMonth ?? null, link: r.link ?? `https://pypi.org/project/${r.name}/`, error: r.error }))
     .sort((a, b) => {
       const aUnknown = a.released === 'unknown';
       const bUnknown = b.released === 'unknown';
@@ -141,9 +141,13 @@ function formatTable(results, directNames, opts = {}) {
   }
 
   console.log(divider);
-  const directCount = rows.filter(r => directNames.has(r.name.toLowerCase().replace(/[-_.]+/g, '-'))).length;
-  const transitiveCount = rows.length - directCount;
-  console.log(`${rows.length} packages total  (${directCount} direct, ${transitiveCount} transitive)`);
+  if (directNames.size > 0) {
+    const directCount     = rows.filter(r => directNames.has(r.name.toLowerCase().replace(/[-_.]+/g, '-'))).length;
+    const transitiveCount = rows.length - directCount;
+    console.log(`${rows.length} packages total  (${directCount} direct, ${transitiveCount} transitive)`);
+  } else {
+    console.log(`${rows.length} packages total`);
+  }
 }
 
 /**
