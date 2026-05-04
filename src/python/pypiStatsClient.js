@@ -7,76 +7,14 @@
  * When debug mode is enabled via src/debug.js, HTTP errors are logged to stderr.
  */
 
+import { fetchWithRetry } from '../util/http.js';
+import { normalizePackageName } from './pypiClient.js';
 import { debugLog } from '../util/debugging.js';
 
 /** @type {Map<string, { lastMonth: number }|null>} cache keyed by normalized package name */
 const cache = new Map();
 
 const STATS_BASE = 'https://pypistats.org/api/packages';
-const MAX_RETRIES = 3;
-const RETRY_BASE_MS = 1000;
-
-/**
- * Normalizes a Python package name for use as a cache key and URL segment.
- * Lowercases the name and collapses any run of [-_.] to a single hyphen,
- * matching PyPI's own canonical normalization rules.
- * @param {string} name - raw package name
- * @returns {string} normalized name
- */
-function normalizePackageName(name) {
-  return name.toLowerCase().replace(/[-_.]+/g, '-');
-}
-
-/**
- * Pauses execution for the given number of milliseconds.
- * @param {number} ms
- * @returns {Promise<void>}
- */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Fetches a URL with automatic retry on 429 (rate-limit) responses.
- * Unlike pypiClient, all non-success responses return null rather than throwing,
- * because download statistics are supplementary and must not block the main output.
- * @param {string} url - full URL to fetch
- * @returns {Promise<object|null>} parsed JSON body, or null on any failure
- */
-async function fetchWithRetry(url) {
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    let response;
-    try {
-      response = await fetch(url);
-    } catch (networkErr) {
-      debugLog(`pypistats network error fetching ${url}: ${networkErr.message}`);
-      if (attempt === MAX_RETRIES - 1) return null;
-      await sleep(RETRY_BASE_MS * 2 ** attempt);
-      continue;
-    }
-
-    if (response.status === 404) {
-      debugLog(`pypistats 404 for ${url}`);
-      return null;
-    }
-
-    if (response.status === 429) {
-      const retryAfter = response.headers.get('retry-after');
-      const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : RETRY_BASE_MS * 2 ** attempt;
-      debugLog(`pypistats rate-limited (429) for ${url}, waiting ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
-      if (attempt === MAX_RETRIES - 1) return null;
-      await sleep(waitMs);
-      continue;
-    }
-
-    if (!response.ok) {
-      debugLog(`pypistats HTTP ${response.status} for ${url}`);
-      return null;
-    }
-    return response.json();
-  }
-  return null;
-}
 
 /**
  * Fetches recent download statistics for a package from pypistats.org.
@@ -92,7 +30,7 @@ async function fetchDownloadStats(packageName) {
   const key = normalizePackageName(packageName);
   if (cache.has(key)) return cache.get(key);
 
-  const data = await fetchWithRetry(`${STATS_BASE}/${key}/recent`);
+  const data = await fetchWithRetry(`${STATS_BASE}/${key}/recent`, { serviceName: 'pypistats', throwOnError: false });
   const result = (data?.data?.last_month != null)
     ? { lastMonth: data.data.last_month }
     : null;

@@ -11,50 +11,9 @@ import { fetchPackageInfo, fetchVersionInfo, getVersionList, getReleaseDate, get
 import { fetchDownloadStats } from './pypiStatsClient.js';
 import { resolveVersion } from './versionResolver.js';
 import { parseRequiresDist } from './parserCore.js';
+import { Semaphore } from '../util/semaphore.js';
 
 const CONCURRENCY = 5;
-
-/**
- * A simple async semaphore that limits the number of concurrent operations.
- * Callers must `await acquire()` before the guarded work and call `release()` when done.
- * The semaphore is released *before* recursing into child dependencies to prevent deadlock.
- */
-class Semaphore {
-  /**
-   * @param {number} limit - maximum number of concurrent holders
-   */
-  constructor(limit) {
-    this.limit = limit;
-    this.count = 0;
-    /** @type {Array<() => void>} */
-    this.queue = [];
-  }
-
-  /**
-   * Waits until a slot is available, then acquires it.
-   * @returns {Promise<void>}
-   */
-  acquire() {
-    if (this.count < this.limit) {
-      this.count++;
-      return Promise.resolve();
-    }
-    return new Promise(resolve => this.queue.push(resolve));
-  }
-
-  /**
-   * Releases a slot and wakes the next waiting caller, if any.
-   */
-  release() {
-    if (this.queue.length > 0) {
-      // Pass the slot directly to the next waiter without decrementing
-      const next = this.queue.shift();
-      next();
-    } else {
-      this.count--;
-    }
-  }
-}
 
 /**
  * Resolves the complete transitive dependency graph of a Python project.

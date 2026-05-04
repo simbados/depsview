@@ -5,11 +5,9 @@
  * Implements exponential-backoff retry for 429 responses.
  */
 
-import { debugLog } from '../util/debugging.js';
+import { fetchWithRetry } from '../util/http.js';
 
-const REGISTRY   = 'https://registry.npmjs.org';
-const MAX_RETRIES  = 3;
-const RETRY_BASE_MS = 1000;
+const REGISTRY = 'https://registry.npmjs.org';
 
 /** @type {Map<string, object|null>} */
 const cache = new Map();
@@ -26,55 +24,6 @@ function encodePackageName(name) {
 }
 
 /**
- * Pauses for ms milliseconds.
- * @param {number} ms
- * @returns {Promise<void>}
- */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Fetches a URL with automatic exponential-backoff retry on 429 responses.
- * Throws on persistent network failures and non-retryable HTTP errors.
- * Returns null on 404.
- * @param {string} url
- * @returns {Promise<object|null>}
- */
-async function fetchWithRetry(url) {
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    let response;
-    try {
-      response = await fetch(url);
-    } catch (networkErr) {
-      debugLog(`npm registry network error fetching ${url}: ${networkErr.message}`);
-      if (attempt === MAX_RETRIES - 1) throw new Error(`Network error fetching ${url}: ${networkErr.message}`);
-      await sleep(RETRY_BASE_MS * 2 ** attempt);
-      continue;
-    }
-
-    if (response.status === 404) return null;
-
-    if (response.status === 429) {
-      const retryAfter = response.headers.get('retry-after');
-      const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : RETRY_BASE_MS * 2 ** attempt;
-      debugLog(`npm registry rate-limited (429) for ${url}, waiting ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
-      if (attempt === MAX_RETRIES - 1) throw new Error(`Rate limited by npm registry after ${MAX_RETRIES} attempts`);
-      await sleep(waitMs);
-      continue;
-    }
-
-    if (!response.ok) {
-      debugLog(`npm registry HTTP ${response.status} for ${url}`);
-      throw new Error(`npm registry returned HTTP ${response.status} for ${url}`);
-    }
-
-    return response.json();
-  }
-  return null;
-}
-
-/**
  * Fetches the full package document from the npm registry.
  * The document contains all versions, dist-tags, and a `time` object mapping
  * every version string to its ISO publish timestamp.
@@ -85,7 +34,7 @@ async function fetchWithRetry(url) {
 async function fetchPackageInfo(name) {
   const key = name.toLowerCase();
   if (cache.has(key)) return cache.get(key);
-  const data = await fetchWithRetry(`${REGISTRY}/${encodePackageName(name)}`);
+  const data = await fetchWithRetry(`${REGISTRY}/${encodePackageName(name)}`, { serviceName: 'npm registry' });
   cache.set(key, data);
   return data;
 }

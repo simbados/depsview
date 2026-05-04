@@ -6,14 +6,12 @@
  * When debug mode is enabled via src/debug.js, HTTP errors are logged to stderr.
  */
 
-import { debugLog } from '../util/debugging.js';
+import { fetchWithRetry } from '../util/http.js';
 
 /** @type {Map<string, object|null>} In-memory cache keyed by "name" or "name@version" */
 const cache = new Map();
 
 const PYPI_BASE = 'https://pypi.org/pypi';
-const MAX_RETRIES = 3;
-const RETRY_BASE_MS = 1000;
 
 /**
  * Normalizes a Python package name to its PyPI canonical form:
@@ -24,55 +22,6 @@ const RETRY_BASE_MS = 1000;
  */
 function normalizePackageName(name) {
   return name.toLowerCase().replace(/[-_.]+/g, '-');
-}
-
-/**
- * Performs a single fetch with automatic retry on 429 (rate-limit) responses.
- * Waits `RETRY_BASE_MS * 2^attempt` milliseconds before each retry.
- * Throws on network errors and non-retryable HTTP errors after all attempts are exhausted.
- * @param {string} url - full URL to fetch
- * @returns {Promise<object|null>} parsed JSON body, or null on 404
- */
-async function fetchWithRetry(url) {
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    let response;
-    try {
-      response = await fetch(url);
-    } catch (networkErr) {
-      debugLog(`PyPI network error fetching ${url}: ${networkErr.message}`);
-      if (attempt === MAX_RETRIES - 1) throw new Error(`Network error fetching ${url}: ${networkErr.message}`);
-      await sleep(RETRY_BASE_MS * 2 ** attempt);
-      continue;
-    }
-
-    if (response.status === 404) return null;
-
-    if (response.status === 429) {
-      // Respect Retry-After header when present, otherwise use exponential backoff
-      const retryAfter = response.headers.get('retry-after');
-      const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : RETRY_BASE_MS * 2 ** attempt;
-      debugLog(`PyPI rate-limited (429) for ${url}, waiting ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
-      if (attempt === MAX_RETRIES - 1) throw new Error(`Rate limited by PyPI, giving up after ${MAX_RETRIES} attempts`);
-      await sleep(waitMs);
-      continue;
-    }
-
-    if (!response.ok) {
-      debugLog(`PyPI HTTP ${response.status} for ${url}`);
-      throw new Error(`PyPI returned HTTP ${response.status} for ${url}`);
-    }
-    return response.json();
-  }
-  return null;
-}
-
-/**
- * Pauses execution for the given number of milliseconds.
- * @param {number} ms
- * @returns {Promise<void>}
- */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -87,7 +36,7 @@ async function fetchPackageInfo(packageName) {
   const key = normalizePackageName(packageName);
   if (cache.has(key)) return cache.get(key);
 
-  const data = await fetchWithRetry(`${PYPI_BASE}/${key}/json`);
+  const data = await fetchWithRetry(`${PYPI_BASE}/${key}/json`, { serviceName: 'PyPI' });
   cache.set(key, data);
   return data;
 }
@@ -104,7 +53,7 @@ async function fetchVersionInfo(packageName, version) {
   const key = `${normalizePackageName(packageName)}@${version}`;
   if (cache.has(key)) return cache.get(key);
 
-  const data = await fetchWithRetry(`${PYPI_BASE}/${normalizePackageName(packageName)}/${version}/json`);
+  const data = await fetchWithRetry(`${PYPI_BASE}/${normalizePackageName(packageName)}/${version}/json`, { serviceName: 'PyPI' });
   cache.set(key, data);
   return data;
 }

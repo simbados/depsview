@@ -15,29 +15,9 @@
 import { fetchPackageInfo, getVersionList, getReleaseDate, getFirstReleaseDate, getReleaseCount } from './npmClient.js';
 import { resolveVersion } from './versionResolver.js';
 import { isNonRegistrySpec } from './parserCore.js';
+import { Semaphore } from '../util/semaphore.js';
 
 const CONCURRENCY = 5;
-
-/**
- * Simple async semaphore that bounds concurrent operations.
- * Identical to the one in python/depResolver.js.
- */
-class Semaphore {
-  constructor(limit) {
-    this.limit = limit;
-    this.count = 0;
-    /** @type {Array<() => void>} */
-    this.queue = [];
-  }
-  acquire() {
-    if (this.count < this.limit) { this.count++; return Promise.resolve(); }
-    return new Promise(resolve => this.queue.push(resolve));
-  }
-  release() {
-    if (this.queue.length > 0) { this.queue.shift()(); }
-    else { this.count--; }
-  }
-}
 
 /**
  * Normalizes an npm package name for use as a Map key.
