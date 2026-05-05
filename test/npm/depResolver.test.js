@@ -40,8 +40,8 @@ describe('resolveDependencies — lock file path (exact versions)', () => {
     const restore = mockFetch({ lodash: makeDoc('lodash', '4.17.21') });
     try {
       const results = await resolveDependencies([{ name: 'lodash', version: '4.17.21' }]);
-      assert.ok(results.has('lodash'));
-      assert.equal(results.get('lodash').version, '4.17.21');
+      assert.ok(results.has('lodash@4.17.21'));
+      assert.equal(results.get('lodash@4.17.21').version, '4.17.21');
     } finally { restore(); }
   });
 
@@ -49,7 +49,7 @@ describe('resolveDependencies — lock file path (exact versions)', () => {
     const restore = mockFetch({ lodash: makeDoc('lodash', '4.17.21') });
     try {
       const results = await resolveDependencies([{ name: 'lodash', version: '4.17.21' }]);
-      assert.equal(results.get('lodash').link, 'https://www.npmjs.com/package/lodash');
+      assert.equal(results.get('lodash@4.17.21').link, 'https://www.npmjs.com/package/lodash');
     } finally { restore(); }
   });
 
@@ -58,7 +58,7 @@ describe('resolveDependencies — lock file path (exact versions)', () => {
     globalThis.fetch = async () => ({ ok: false, status: 404 });
     try {
       const results = await resolveDependencies([{ name: 'nonexistent', version: '1.0.0' }]);
-      assert.ok(results.get('nonexistent').error);
+      assert.ok(results.get('nonexistent@1.0.0').error);
     } finally { globalThis.fetch = orig; }
   });
 

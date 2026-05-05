@@ -42,7 +42,7 @@
       <p class="token-note"><strong>Your token is sent only to <code>api.github.com</code> and never transmitted to any other server.</strong></p>
       <div class="option-row">
         <input id="remember-token" type="checkbox">
-        <label for="remember-token">Remember token</label>
+        <label for="remember-token">Remember GitHub token</label>
       </div>
       <p class="storage-note" id="storage-note" hidden>
         Saved in your browser's <strong>local storage</strong> — persists between page visits and is readable by any JavaScript running on this page.
@@ -58,6 +58,10 @@
       The GitHub API allows 60 unauthenticated requests per hour.
       Provide a personal access token above to raise this to 5 000 req/hr and to access private repositories.
       Only the target directory and up to two levels of subdirectories are scanned for dependency files.
+    </p>
+
+    <p class="note">
+      Supply chain scores (socket.dev) and Python download statistics (pypistats.org) are only available in the CLI — their APIs do not support cross-origin browser requests.
     </p>
 
     <p class="legend">

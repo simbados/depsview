@@ -31,11 +31,15 @@ function sleep(ms) {
  *
  * @param {string} url - full URL to fetch
  * @param {object} [opts]
- * @param {string}  [opts.serviceName='HTTP']    - name used in debug/error messages
- * @param {boolean} [opts.throwOnError=true]     - false makes all failures return null
- * @param {number}  [opts.maxRetries=3]          - total attempts (1 = no retries)
- * @param {number}  [opts.retryBaseMs=1000]      - base delay for exponential backoff
- * @returns {Promise<object|null>} parsed JSON body, or null on 404 / soft failures
+ * @param {string}  [opts.serviceName='HTTP']        - name used in debug/error messages
+ * @param {boolean} [opts.throwOnError=true]         - false makes all failures return null
+ * @param {number}  [opts.maxRetries=3]              - total attempts (1 = no retries)
+ * @param {number}  [opts.retryBaseMs=1000]          - base delay for exponential backoff
+ * @param {object}  [opts.headers={}]                - additional request headers
+ * @param {string}  [opts.method='GET']              - HTTP method
+ * @param {string}  [opts.body]                      - request body (for POST/PUT)
+ * @param {'json'|'text'} [opts.responseType='json'] - how to parse a successful response
+ * @returns {Promise<object|string|null>} parsed body, or null on 404 / soft failures
  */
 async function fetchWithRetry(url, opts = {}) {
   const {
@@ -43,12 +47,16 @@ async function fetchWithRetry(url, opts = {}) {
     throwOnError = true,
     maxRetries   = DEFAULT_MAX_RETRIES,
     retryBaseMs  = DEFAULT_RETRY_BASE_MS,
+    headers      = {},
+    method       = 'GET',
+    body,
+    responseType = 'json',
   } = opts;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     let response;
     try {
-      response = await fetch(url);
+      response = await fetch(url, { method, headers, body });
     } catch (networkErr) {
       debugLog(`${serviceName} network error fetching ${url}: ${networkErr.message}`);
       if (attempt === maxRetries - 1) {
@@ -79,7 +87,7 @@ async function fetchWithRetry(url, opts = {}) {
       return null;
     }
 
-    return response.json();
+    return responseType === 'text' ? response.text() : response.json();
   }
   return null;
 }

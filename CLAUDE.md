@@ -1,6 +1,6 @@
 # Project Overview
 Show dependencies and transitive dependencies in a project. It prints a list of all dependencies. It uses
-https://pypi.org/ for package metadata and https://pypistats.org/ for download statistics. No other resources are used.
+https://pypi.org/ for package metadata and https://pypistats.org/ for download statistics and github if you use the github link feature. No other resources are used.
 
 # Documentation
 - **README must stay current:** After every implementation update the README to reflect any new flags, behaviour, file formats, or limitations introduced by the change.

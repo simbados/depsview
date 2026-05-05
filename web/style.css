@@ -160,11 +160,26 @@ h1 {
 .option-row input[type="checkbox"] { cursor: pointer; width: 1em; height: 1em; accent-color: var(--accent); }
 .option-row label { cursor: pointer; }
 
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0;
+}
+
 .note {
   font-size: 0.8rem;
   color: var(--muted);
   margin: 1.25rem 0 0;
   line-height: 1.6;
+}
+
+.note-warning {
+  background: rgba(146, 64, 14, 0.2);
+  border-left: 3px solid var(--amber-border);
+  border-radius: 0 6px 6px 0;
+  padding: 0.5rem 0.85rem;
+  color: var(--amber-text);
+  margin: 0 0 0.85rem;
 }
 
 .legend {
@@ -244,6 +259,7 @@ tbody tr:hover td { background: #273548; }
 
 /* Package that failed to resolve */
 .row-error td { color: var(--muted); font-style: italic; }
+
 
 /* PyPI links in the results table */
 table a { color: var(--accent); text-decoration: none; }

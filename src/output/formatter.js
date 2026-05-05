@@ -9,6 +9,7 @@
 
 const ANSI_RED    = '\x1b[31m';
 const ANSI_YELLOW = '\x1b[33m';
+const ANSI_GREEN  = '\x1b[32m';
 const ANSI_RESET  = '\x1b[0m';
 
 /**
@@ -41,18 +42,44 @@ function applyColor(cell, color) {
 }
 
 /**
+ * Returns display text and ANSI color code for a supply chain score.
+ * Scores are color-coded by severity: green ≥ 80 %, yellow 50–79 %, red < 50 %.
+ * Null (score not available) returns a dash with no color.
+ * @param {number|null} score - supply chain score in range 0–1, or null when unavailable
+ * @returns {{ text: string, color: string|null }}
+ */
+function socketScoreDisplay(score) {
+  if (score == null) return { text: '-', color: null };
+  const pct  = Math.round(score * 100);
+  const color = score >= 0.8 ? ANSI_GREEN : score >= 0.5 ? ANSI_YELLOW : ANSI_RED;
+  return { text: `${pct}%`, color };
+}
+
+/**
  * Converts the resolved dependency map into a sorted array of result objects.
  * Primary sort: release date descending (newest first). ISO-8601 date strings
  * ("YYYY-MM-DD") compare correctly as plain strings, so localeCompare suffices.
  * Packages whose release date is "unknown" always sort to the bottom because
  * the letter 'u' would otherwise rank above any digit in a descending compare.
  * Secondary sort (tiebreaker): package name ascending for deterministic output.
+ * Supply chain scores from socket.dev are joined by "name@version" key.
  * @param {Map<string, { name: string, version: string, releaseDate: string, firstReleaseDate: string, releaseCount: number, downloadsLastMonth: number|null, error?: string }>} results
- * @returns {Array<{ name: string, version: string, released: string, firstReleased: string, releases: number, downloadsLastMonth: number|null, error?: string }>}
+ * @param {Map<string, number>} [socketScores] - optional Map of "name@version" → score (0–1)
+ * @returns {Array<{ name: string, version: string, released: string, firstReleased: string, releases: number, downloadsLastMonth: number|null, supplyChain: number|null, error?: string }>}
  */
-function sortedResults(results) {
+function sortedResults(results, socketScores = new Map()) {
   return [...results.values()]
-    .map(r => ({ name: r.name, version: r.version, released: r.releaseDate, firstReleased: r.firstReleaseDate ?? 'unknown', releases: r.releaseCount ?? 0, downloadsLastMonth: r.downloadsLastMonth ?? null, link: r.link ?? `https://pypi.org/project/${r.name}/`, error: r.error }))
+    .map(r => ({
+      name:               r.name,
+      version:            r.version,
+      released:           r.releaseDate,
+      firstReleased:      r.firstReleaseDate ?? 'unknown',
+      releases:           r.releaseCount ?? 0,
+      downloadsLastMonth: r.downloadsLastMonth ?? null,
+      link:               r.link ?? `https://pypi.org/project/${r.name}/`,
+      error:              r.error,
+      supplyChain:        socketScores.get(`${r.name.toLowerCase()}@${r.version}`) ?? null,
+    }))
     .sort((a, b) => {
       const aUnknown = a.released === 'unknown';
       const bUnknown = b.released === 'unknown';
@@ -78,26 +105,30 @@ function formatDownloads(count) {
 
 /**
  * Formats the resolved dependency map as a padded plain-text table.
- * Default columns: Package, Version, Released, First Release, Releases, Downloads/mo.
+ * Default columns: Package, Version, Released, First Release, Releases, Downloads/mo, Link.
  * The Downloads/mo column is omitted when opts.downloadStats is false.
- * When stdout is a TTY, individual date cells are colored by recency:
+ * The Supply Chain column is shown when opts.socketScores is provided (even if empty).
+ * When stdout is a TTY, individual cells are colored by recency or score severity:
  *   "Released" cell      — yellow when the latest version is ≤ 7 days old
  *   "First Release" cell — red    when the package first appeared ≤ 30 days ago
- * Both cells on the same row can be colored independently.
+ *   "Supply Chain" cell  — green ≥ 80 %, yellow 50–79 %, red < 50 %
  * Packages with errors are flagged inline after the last column.
  * @param {Map<string, { name: string, version: string, releaseDate: string, firstReleaseDate: string, releaseCount: number, downloadsLastMonth: number|null, error?: string }>} results
  * @param {Set<string>} directNames - normalized names of direct (non-transitive) dependencies,
  *   used to report counts at the footer
- * @param {{ downloadStats?: boolean }} [opts]
+ * @param {{ downloadStats?: boolean, socketScores?: Map<string,number>|null }} [opts]
  * @param {boolean} [opts.downloadStats=true] - when false, the Downloads/mo column is omitted
+ * @param {Map<string,number>|null} [opts.socketScores=null] - when provided, adds a Supply Chain column
  */
 function formatTable(results, directNames, opts = {}) {
-  const { downloadStats = true } = opts;
-  const rows = sortedResults(results);
+  const { downloadStats = true, socketScores = null } = opts;
+  const rows = sortedResults(results, socketScores ?? new Map());
   if (rows.length === 0) {
     console.log('No dependencies found.');
     return;
   }
+
+  const showSocket = socketScores != null;
 
   // Compute column widths based on the widest value in each column
   const colName   = Math.max(7,  ...rows.map(r => r.name.length))     + 2;
@@ -108,26 +139,36 @@ function formatTable(results, directNames, opts = {}) {
   const colDl     = downloadStats
     ? Math.max(12, ...rows.map(r => formatDownloads(r.downloadsLastMonth).length)) + 2
     : 0;
+  const colSocket = showSocket
+    ? Math.max(12, ...rows.map(r => socketScoreDisplay(r.supplyChain).text.length)) + 2
+    : 0;
   const colLink   = Math.max(4,  ...rows.map(r => r.link.length)) + 2;
 
   const pad = (s, n) => String(s).padEnd(n);
-  const divider = '-'.repeat(colName + colVer + colRel + colFirst + colPop + colDl + colLink);
+  const divider = '-'.repeat(colName + colVer + colRel + colFirst + colPop + colDl + colSocket + colLink);
 
   console.log(
     pad('Package', colName) + pad('Version', colVer) + pad('Released', colRel) +
     pad('First Release', colFirst) + pad('Releases', colPop) +
     (downloadStats ? pad('Downloads/mo', colDl) : '') +
+    (showSocket    ? pad('Supply Chain', colSocket) : '') +
     pad('Link', colLink)
   );
   console.log(divider);
 
   const now = new Date();
   for (const row of rows) {
-    // Pad each date cell to its column width first, then apply color.
+    // Pad each cell to its column width first, then apply color.
     // Padding must happen before colorizing because ANSI escape sequences
     // are counted as characters by padEnd and would break alignment.
     const releasedCell = applyColor(pad(row.released,      colRel),   daysSince(row.released,      now) <= 7  ? ANSI_YELLOW : null);
     const firstRelCell = applyColor(pad(row.firstReleased, colFirst),  daysSince(row.firstReleased, now) <= 30 ? ANSI_RED    : null);
+
+    let socketCell = '';
+    if (showSocket) {
+      const { text, color } = socketScoreDisplay(row.supplyChain);
+      socketCell = applyColor(pad(text, colSocket), color);
+    }
 
     let line = pad(row.name, colName)
       + pad(row.version, colVer)
@@ -135,6 +176,7 @@ function formatTable(results, directNames, opts = {}) {
       + firstRelCell
       + pad(row.releases, colPop)
       + (downloadStats ? pad(formatDownloads(row.downloadsLastMonth), colDl) : '')
+      + socketCell
       + pad(row.link, colLink);
     if (row.error) line += `  [${row.error}]`;
     console.log(line);
@@ -155,22 +197,25 @@ function formatTable(results, directNames, opts = {}) {
  * Each element has `name`, `version`, `released`, `firstReleased`, and `releases` fields.
  * `downloadsLastMonth` is included only when opts.downloadStats is true; omitting it
  * when downloads were not fetched avoids misleading null values in the output.
+ * `supplyChainScore` is included only when opts.socketScores is provided; its value is
+ * a float 0–1 or null when the package was not returned by the socket.dev API.
  * No ANSI codes are ever included in JSON output.
  * Packages with resolution errors include an additional `error` field.
  * @param {Map<string, { name: string, version: string, releaseDate: string, firstReleaseDate: string, releaseCount: number, downloadsLastMonth: number|null, error?: string }>} results
- * @param {{ downloadStats?: boolean }} [opts]
+ * @param {{ downloadStats?: boolean, socketScores?: Map<string,number>|null }} [opts]
  * @param {boolean} [opts.downloadStats=true] - when false, downloadsLastMonth is omitted
- *   from each entry in the output
+ * @param {Map<string,number>|null} [opts.socketScores=null] - when provided, adds supplyChainScore to each entry
  */
 function formatJson(results, opts = {}) {
-  const { downloadStats = true } = opts;
-  const rows = sortedResults(results).map(r => {
+  const { downloadStats = true, socketScores = null } = opts;
+  const rows = sortedResults(results, socketScores ?? new Map()).map(r => {
     const obj = { name: r.name, version: r.version, released: r.released, firstReleased: r.firstReleased, releases: r.releases, link: r.link };
-    if (downloadStats) obj.downloadsLastMonth = r.downloadsLastMonth;
-    if (r.error) obj.error = r.error;
+    if (downloadStats)     obj.downloadsLastMonth = r.downloadsLastMonth;
+    if (socketScores != null) obj.supplyChainScore = r.supplyChain;
+    if (r.error)           obj.error = r.error;
     return obj;
   });
   console.log(JSON.stringify(rows, null, 2));
 }
 
-export { formatTable, formatJson, daysSince, ANSI_RED, ANSI_YELLOW, ANSI_RESET };
+export { formatTable, formatJson, daysSince, ANSI_RED, ANSI_YELLOW, ANSI_GREEN, ANSI_RESET };

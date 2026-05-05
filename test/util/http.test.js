@@ -7,9 +7,10 @@ let origFetch;
 beforeEach(() => { origFetch = globalThis.fetch; });
 afterEach(() => { globalThis.fetch = origFetch; });
 
-/** Helper: creates a single-use fetch mock that returns a fixed response. */
+/** Helper: creates a single-use fetch mock that returns a fixed response and captures the last call's options. */
+let lastFetchOpts;
 function mockFetch(response) {
-  globalThis.fetch = async () => response;
+  globalThis.fetch = async (url, opts) => { lastFetchOpts = opts; return response; };
 }
 
 /** Helper: creates a fetch mock that returns each element of `responses` in order. */
@@ -31,6 +32,25 @@ describe('fetchWithRetry — success', () => {
     mockFetch({ ok: true, status: 200, json: async () => ({ name: 'lodash' }), headers: { get: () => null } });
     const result = await fetchWithRetry('https://pypi.org/pypi/lodash/json', { serviceName: 'test' });
     assert.deepEqual(result, { name: 'lodash' });
+  });
+
+  it('forwards custom headers to fetch', async () => {
+    mockFetch({ ok: true, status: 200, json: async () => ({}), headers: { get: () => null } });
+    await fetchWithRetry('https://registry.npmjs.org/lodash', { headers: { Accept: 'application/vnd.npm.install-v1+json' } });
+    assert.equal(lastFetchOpts?.headers?.Accept, 'application/vnd.npm.install-v1+json');
+  });
+
+  it('forwards method and body to fetch', async () => {
+    mockFetch({ ok: true, status: 200, json: async () => ({}), headers: { get: () => null } });
+    await fetchWithRetry('https://registry.npmjs.org/lodash', { method: 'POST', body: '{"x":1}' });
+    assert.equal(lastFetchOpts?.method, 'POST');
+    assert.equal(lastFetchOpts?.body, '{"x":1}');
+  });
+
+  it('returns text when responseType is text', async () => {
+    mockFetch({ ok: true, status: 200, text: async () => 'hello', headers: { get: () => null } });
+    const result = await fetchWithRetry('https://registry.npmjs.org/lodash', { responseType: 'text' });
+    assert.equal(result, 'hello');
   });
 });
 

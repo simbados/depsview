@@ -4,7 +4,7 @@ Lists all dependencies and transitive dependencies of a Python or npm project. F
 
 Built with [Claude Code](https://claude.ai/code).
 
-**Data sources:** [PyPI](https://pypi.org/) for Python packages, [registry.npmjs.org](https://registry.npmjs.org) for npm packages, [api.github.com](https://docs.github.com/en/rest) for GitHub URL support, [pypistats.org](https://pypistats.org/) for Python download statistics (optional).
+**Data sources:** [PyPI](https://pypi.org/) for Python packages, [registry.npmjs.org](https://registry.npmjs.org) for npm packages, [api.github.com](https://docs.github.com/en/rest) for GitHub URL support, [pypistats.org](https://pypistats.org/) for Python download statistics (optional), [socket.dev](https://socket.dev/) for supply chain security scores (optional).
 
 ## Requirements
 
@@ -67,15 +67,37 @@ Results are sorted by release date (newest first).
 | `--include-tests` | Include dev/test dependencies |
 | `--json` | Machine-readable JSON output |
 | `--download-stats` / `--ds` | Fetch Python download counts from pypistats.org (Python only) |
+| `--socket-key=<key>` | Socket.dev API key — enables the Supply Chain column |
+| `--socket-org=<slug>` | Socket.dev organisation slug (required with `--socket-key`) |
 | `--debug` | Print API errors and warnings to stderr |
+
+Both socket flags can also be supplied as environment variables `SOCKET_KEY` and `SOCKET_ORG`; the `--socket-key` / `--socket-org` flags take precedence when both are present.
 
 ## npm support
 
-### Lock file (preferred)
+Lock files are always preferred over `package.json`. The priority order is:
+
+1. `package-lock.json` (npm)
+2. `pnpm-lock.yaml` (pnpm)
+3. `package.json` (fallback — recursive registry resolution)
+
+### package-lock.json
 
 When a `package-lock.json` is present, depsview reads the complete list of installed packages directly from it — no recursive registry traversal needed. Packages flagged `"dev": true` are excluded unless `--include-tests` is passed.
 
 Supports lockfileVersion 1, 2, and 3.
+
+### pnpm-lock.yaml
+
+When a `pnpm-lock.yaml` is present, depsview reads the flat package list from the `packages:` section.
+
+Supports lockfile versions 5, 6, and 9:
+
+| Version | pnpm | Dev-package detection |
+|---|---|---|
+| 5 | ≤6 | `dev: true` flag inside each entry |
+| 6 | 7/8 | `dev: true` flag inside each entry |
+| 9 | 9+ | `devDependencies` in the `importers:` section |
 
 ### package.json fallback
 
@@ -139,6 +161,7 @@ GITHUB_TOKEN=ghp_... node src/main.js https://github.com/owner/private-repo
 | First Release | Date the package first appeared on its registry |
 | Releases | Total number of published versions |
 | Downloads/mo | Python only, with `--download-stats` |
+| Supply Chain | Score 0–100 % from socket.dev (requires `--socket-key` + `--socket-org`) |
 | Link | Registry page URL (CLI only) |
 
 ### Color coding (CLI)
@@ -147,6 +170,9 @@ GITHUB_TOKEN=ghp_... node src/main.js https://github.com/owner/private-repo
 |---|---|---|
 | Yellow | Released | Version published within the last 7 days |
 | Red | First Release | Package first appeared within the last 30 days |
+| Green | Supply Chain | Score ≥ 80 % |
+| Yellow | Supply Chain | Score 50–79 % |
+| Red | Supply Chain | Score < 50 % |
 
 No color codes are emitted when output is piped or redirected.
 
@@ -168,6 +194,16 @@ node src/main.js <path-or-url> --json
   }
 ]
 ```
+
+When `--socket-key` and `--socket-org` are provided, each entry additionally contains:
+
+```json
+{
+  "supplyChainScore": 0.87
+}
+```
+
+`supplyChainScore` is `null` when the package was not returned by the socket.dev API.
 
 ## Excluding test dependencies
 
@@ -199,6 +235,10 @@ The web UI supports the same GitHub URL formats as the CLI. It auto-detects the 
 ### GitHub token in the web UI
 
 Enter a personal access token in the **GitHub token** field. It is used only for `api.github.com` and never sent elsewhere. Check **Remember token** to persist it in `localStorage`.
+
+### Socket.dev credentials in the web UI
+
+Enter your Socket.dev API key and organisation slug in the **Socket.dev API key** and **Socket.dev org slug** fields. When both are provided, a Supply Chain column is added to the results table with scores colour-coded green (≥ 80 %), amber (50–79 %), or red (< 50 %). Check **Remember Socket.dev credentials** to persist them in `localStorage`.
 
 ## Debug mode
 

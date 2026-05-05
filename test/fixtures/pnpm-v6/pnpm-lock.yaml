@@ -1,0 +1,30 @@
+lockfileVersion: '6.0'
+
+dependencies:
+  lodash:
+    specifier: ^4.17.0
+    version: 4.17.21
+  vite:
+    specifier: ^5.0.0
+    version: 5.1.0
+
+devDependencies:
+  eslint:
+    specifier: ^8.0.0
+    version: 8.57.0
+
+packages:
+
+  /eslint@8.57.0:
+    resolution: {integrity: sha512-dX7PX2O0kMT}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+    dev: true
+
+  /lodash@4.17.21:
+    resolution: {integrity: sha512-v2kDEe57lecTulD}
+    dev: false
+
+  /vite@5.1.0:
+    resolution: {integrity: sha512-BpkY0lXtX}
+    engines: {node: ^18.0.0 || >=20.0.0}
+    dev: false

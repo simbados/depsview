@@ -6,7 +6,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTable, formatJson, daysSince, ANSI_RED, ANSI_YELLOW } from '../../src/output/formatter.js';
+import { formatTable, formatJson, daysSince, ANSI_RED, ANSI_YELLOW, ANSI_GREEN } from '../../src/output/formatter.js';
 
 /**
  * Temporarily replaces console.log, runs fn(), then restores it.
@@ -637,5 +637,127 @@ describe('color thresholds via daysSince', () => {
 
   test('ANSI_YELLOW is the standard yellow escape sequence', () => {
     assert.equal(ANSI_YELLOW, '\x1b[33m');
+  });
+
+  test('ANSI_GREEN is the standard green escape sequence', () => {
+    assert.equal(ANSI_GREEN, '\x1b[32m');
+  });
+});
+
+// ── Supply Chain column — formatTable ─────────────────────────────────────────
+
+describe('formatTable — socketScores', () => {
+  /**
+   * When socketScores is provided, the Supply Chain header must appear in the output.
+   */
+  test('shows Supply Chain column header when socketScores provided', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const socketScores = new Map([['requests@2.31.0', 0.87]]);
+    const output = captureConsole(() => formatTable(results, new Set(), { socketScores }));
+    assert.ok(output.includes('Supply Chain'), `Expected "Supply Chain" header in:\n${output}`);
+  });
+
+  /**
+   * Without socketScores the Supply Chain header must not appear.
+   */
+  test('omits Supply Chain column when socketScores not provided', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const output = captureConsole(() => formatTable(results, new Set()));
+    assert.ok(!output.includes('Supply Chain'), 'Supply Chain header must not appear without socketScores');
+  });
+
+  /**
+   * A score of 0.87 should render as "87%" in the table row.
+   */
+  test('renders score as percentage in table row', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const socketScores = new Map([['requests@2.31.0', 0.87]]);
+    const output = captureConsole(() => formatTable(results, new Set(), { socketScores }));
+    assert.ok(output.includes('87%'), `Expected "87%" in:\n${output}`);
+  });
+
+  /**
+   * A package not found in socketScores should render as "-" in the Supply Chain cell.
+   */
+  test('renders "-" when package has no score in socketScores', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const socketScores = new Map(); // empty — no scores
+    const output = captureConsole(() => formatTable(results, new Set(), { socketScores }));
+    assert.ok(output.includes('Supply Chain'), 'header must appear');
+    assert.ok(output.includes('-'), 'dash must appear for missing score');
+  });
+
+  /**
+   * An empty socketScores Map still triggers the column (column is shown, all cells are "-").
+   */
+  test('shows column even when socketScores Map is empty', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const output = captureConsole(() => formatTable(results, new Set(), { socketScores: new Map() }));
+    assert.ok(output.includes('Supply Chain'));
+  });
+});
+
+// ── Supply Chain field — formatJson ───────────────────────────────────────────
+
+describe('formatJson — socketScores', () => {
+  /**
+   * When socketScores is provided, each entry should include supplyChainScore.
+   */
+  test('includes supplyChainScore when socketScores provided', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const socketScores = new Map([['requests@2.31.0', 0.87]]);
+    const output = captureConsole(() => formatJson(results, { socketScores }));
+    const rows = JSON.parse(output);
+    assert.ok('supplyChainScore' in rows[0], 'supplyChainScore must be present');
+    assert.equal(rows[0].supplyChainScore, 0.87);
+  });
+
+  /**
+   * When socketScores is not provided, supplyChainScore must be absent.
+   */
+  test('omits supplyChainScore when socketScores not provided', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const output = captureConsole(() => formatJson(results));
+    const rows = JSON.parse(output);
+    assert.ok(!('supplyChainScore' in rows[0]), 'supplyChainScore must not appear without socketScores');
+  });
+
+  /**
+   * A package not present in socketScores should have supplyChainScore: null.
+   */
+  test('supplyChainScore is null when package not in socketScores', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const socketScores = new Map(); // empty
+    const output = captureConsole(() => formatJson(results, { socketScores }));
+    const rows = JSON.parse(output);
+    assert.equal(rows[0].supplyChainScore, null);
+  });
+
+  /**
+   * An empty socketScores Map still adds the supplyChainScore field (value null).
+   */
+  test('adds supplyChainScore field even with empty socketScores Map', () => {
+    const results = makeResults([
+      { name: 'requests', version: '2.31.0', released: '2023-05-22' },
+    ]);
+    const output = captureConsole(() => formatJson(results, { socketScores: new Map() }));
+    const rows = JSON.parse(output);
+    assert.ok('supplyChainScore' in rows[0]);
   });
 });

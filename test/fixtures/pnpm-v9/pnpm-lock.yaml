@@ -1,0 +1,35 @@
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      lodash:
+        specifier: ^4.17.0
+        version: 4.17.21
+      vite:
+        specifier: ^5.0.0
+        version: 5.1.0
+    devDependencies:
+      eslint:
+        specifier: ^8.0.0
+        version: 8.57.0
+
+packages:
+
+  eslint@8.57.0:
+    resolution: {integrity: sha512-dX7PX2O0kMT}
+
+  lodash@4.17.21:
+    resolution: {integrity: sha512-v2kDEe57lecTulD}
+
+  vite@5.1.0:
+    resolution: {integrity: sha512-BpkY0lXtX}
+
+snapshots:
+
+  eslint@8.57.0: {}
+
+  lodash@4.17.21: {}
+
+  vite@5.1.0: {}

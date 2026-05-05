@@ -6,7 +6,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatNumber, daysSince, sortResults } from '../web/app.js';
+import { formatNumber, daysSince, sortResults, detectEcosystem } from '../web/app.js';
 
 // ── formatNumber ───────────────────────────────────────────────────────────────
 
@@ -134,7 +134,7 @@ describe('sortResults', () => {
     assert.equal(sorted[2].name, 'zeta');
   });
 
-  it('does not mutate the input Map', () => {
+  it('does not mutate the input Map', async () => {
     const map = new Map([
       ['a', { name: 'alpha', releaseDate: '2023-01-01' }],
       ['b', { name: 'beta',  releaseDate: '2024-01-01' }],
@@ -143,5 +143,96 @@ describe('sortResults', () => {
     sortResults(map);
     const afterOrder = [...map.values()].map(v => v.name);
     assert.deepEqual(originalOrder, afterOrder);
+  });
+});
+
+
+// ── detectEcosystem ────────────────────────────────────────────────────────────
+//
+// IMPORTANT: detectEcosystem returns null when no recognised files exist at the
+// root level. Callers MUST fall back to 'python' in that case (using ?? 'python')
+// so that parseGithubDependencies can run its depth-2 traversal and find nested
+// dep files such as the manifest.json in Home Assistant integrations located at
+// custom_components/<name>/manifest.json.
+// Removing that fallback causes HA integration repos to fail with "Could not
+// detect ecosystem" even though the dep file is reachable via traversal.
+
+describe('detectEcosystem', () => {
+  it('detects npm from package-lock.json', () => {
+    const listing = [{ name: 'package-lock.json', type: 'file' }];
+    assert.equal(detectEcosystem(listing), 'npm');
+  });
+
+  it('detects npm from pnpm-lock.yaml', () => {
+    const listing = [{ name: 'pnpm-lock.yaml', type: 'file' }];
+    assert.equal(detectEcosystem(listing), 'npm');
+  });
+
+  it('detects npm from package.json', () => {
+    const listing = [{ name: 'package.json', type: 'file' }];
+    assert.equal(detectEcosystem(listing), 'npm');
+  });
+
+  it('npm takes precedence over python when both present', () => {
+    const listing = [
+      { name: 'package.json',  type: 'file' },
+      { name: 'requirements.txt', type: 'file' },
+    ];
+    assert.equal(detectEcosystem(listing), 'npm');
+  });
+
+  it('detects python from pyproject.toml', () => {
+    const listing = [{ name: 'pyproject.toml', type: 'file' }];
+    assert.equal(detectEcosystem(listing), 'python');
+  });
+
+  it('detects python from requirements.txt', () => {
+    const listing = [{ name: 'requirements.txt', type: 'file' }];
+    assert.equal(detectEcosystem(listing), 'python');
+  });
+
+  it('detects python from manifest.json', () => {
+    const listing = [{ name: 'manifest.json', type: 'file' }];
+    assert.equal(detectEcosystem(listing), 'python');
+  });
+
+  it('detects python from setup.cfg', () => {
+    const listing = [{ name: 'setup.cfg', type: 'file' }];
+    assert.equal(detectEcosystem(listing), 'python');
+  });
+
+  it('detects python from Pipfile', () => {
+    const listing = [{ name: 'Pipfile', type: 'file' }];
+    assert.equal(detectEcosystem(listing), 'python');
+  });
+
+  // ── HA regression guard ──────────────────────────────────────────────────
+  // A Home Assistant integration repo has manifest.json at
+  // custom_components/<name>/manifest.json — two levels below the repo root.
+  // detectEcosystem only sees the root listing, so it must return null here.
+  // The CALLER must apply ?? 'python' so that parseGithubDependencies runs
+  // its depth-2 traversal and finds the nested manifest.json.
+  // If this test starts failing the fallback may have been removed.
+
+  it('returns null for a HA-style root listing (only custom_components dir)', () => {
+    const listing = [
+      { name: 'custom_components', type: 'dir' },
+      { name: 'README.md',         type: 'file' },
+      { name: '.github',           type: 'dir' },
+    ];
+    assert.equal(detectEcosystem(listing), null);
+  });
+
+  it('returns null for an empty listing', () => {
+    assert.equal(detectEcosystem([]), null);
+  });
+
+  it('returns null when only unrecognised files and dirs are present', () => {
+    const listing = [
+      { name: 'src',       type: 'dir' },
+      { name: 'README.md', type: 'file' },
+      { name: 'LICENSE',   type: 'file' },
+    ];
+    assert.equal(detectEcosystem(listing), null);
   });
 });

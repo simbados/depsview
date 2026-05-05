@@ -77,7 +77,7 @@ describe('parsePackageLock — v1 lockfile', () => {
   });
 });
 
-describe('parsePackageLock — nested deduplication (v2)', () => {
+describe('parsePackageLock — multiple versions at different paths (v2)', () => {
   const nestedLock = JSON.stringify({
     lockfileVersion: 2,
     packages: {
@@ -87,14 +87,29 @@ describe('parsePackageLock — nested deduplication (v2)', () => {
     },
   });
 
-  it('first (shallowest) entry wins for duplicate names', () => {
-    const deps = parsePackageLock(nestedLock);
-    const lodash = deps.find(d => d.name === 'lodash');
-    assert.equal(lodash.version, '4.17.21');
+  it('returns both versions when they differ', () => {
+    const versions = parsePackageLock(nestedLock)
+      .filter(d => d.name === 'lodash').map(d => d.version).sort();
+    assert.deepEqual(versions, ['3.10.1', '4.17.21']);
   });
 
-  it('deduplication results in exactly one lodash entry', () => {
-    assert.equal(parsePackageLock(nestedLock).filter(d => d.name === 'lodash').length, 1);
+  it('returns two lodash entries for different versions', () => {
+    assert.equal(parsePackageLock(nestedLock).filter(d => d.name === 'lodash').length, 2);
+  });
+});
+
+describe('parsePackageLock — same name@version at multiple paths (v2)', () => {
+  const sameLock = JSON.stringify({
+    lockfileVersion: 2,
+    packages: {
+      '': {},
+      'node_modules/lodash':                   { version: '4.17.21' },
+      'node_modules/foo/node_modules/lodash':  { version: '4.17.21' },
+    },
+  });
+
+  it('deduplicates identical name@version appearing at multiple paths', () => {
+    assert.equal(sameLock && parsePackageLock(sameLock).filter(d => d.name === 'lodash').length, 1);
   });
 });
 

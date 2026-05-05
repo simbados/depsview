@@ -17,7 +17,7 @@ import { resolveVersion } from './versionResolver.js';
 import { isNonRegistrySpec } from './parserCore.js';
 import { Semaphore } from '../util/semaphore.js';
 
-const CONCURRENCY = 5;
+const CONCURRENCY = 10;
 
 /**
  * Normalizes an npm package name for use as a Map key.
@@ -62,29 +62,43 @@ async function resolveFromLock(packages, opts) {
   const semaphore = new Semaphore(CONCURRENCY);
 
   await Promise.all(packages.map(async ({ name, version }) => {
-    const key = normalizePackageName(name);
-    await semaphore.acquire();
-    let packageData;
+    // Key includes version so multiple installed versions of the same package
+    // each get their own entry in the results Map.
+    const key = `${normalizePackageName(name)}@${version}`;
     try {
-      packageData = await fetchPackageInfo(name);
-    } finally {
-      semaphore.release();
-    }
+      await semaphore.acquire();
+      let packageData;
+      try {
+        packageData = await fetchPackageInfo(name);
+      } finally {
+        semaphore.release();
+      }
 
-    if (!packageData) {
-      onProgress?.(`  [warn] Package not found on npm registry: ${name}`);
+      if (!packageData) {
+        onProgress?.(`  [warn] Package not found on npm registry: ${name}`);
+        results.set(key, {
+          name, version,
+          releaseDate: 'unknown', firstReleaseDate: 'unknown',
+          releaseCount: 0, downloadsLastMonth: null,
+          link: `https://www.npmjs.com/package/${name}`,
+          error: 'Package not found on npm registry',
+        });
+        return;
+      }
+
+      onProgress?.(`  ${packageData.name ?? name} ${version}`);
+      results.set(key, buildResult(packageData, name, version));
+    } catch (err) {
+      // A network error on one package must not abort the entire batch —
+      // store it as an error entry and continue resolving the rest.
       results.set(key, {
         name, version,
         releaseDate: 'unknown', firstReleaseDate: 'unknown',
         releaseCount: 0, downloadsLastMonth: null,
         link: `https://www.npmjs.com/package/${name}`,
-        error: 'Package not found on npm registry',
+        error: err.message,
       });
-      return;
     }
-
-    onProgress?.(`  ${packageData.name ?? name} ${version}`);
-    results.set(key, buildResult(packageData, name, version));
   }));
 
   return results;

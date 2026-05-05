@@ -73,7 +73,7 @@ export function sortResults(resultsMap) {
  */
 export function detectEcosystem(listing) {
   const names = new Set(listing.map(e => e.name));
-  if (names.has('package-lock.json') || names.has('package.json')) return 'npm';
+  if (names.has('package-lock.json') || names.has('pnpm-lock.yaml') || names.has('package.json')) return 'npm';
   if (names.has('pyproject.toml') || names.has('requirements.txt') ||
       names.has('setup.cfg')      || names.has('Pipfile') ||
       names.has('manifest.json'))                                    return 'python';
@@ -101,10 +101,11 @@ function addCell(row, text) {
  * Package names link to their registry page (PyPI or npmjs.com) via each
  * result's `link` property.
  * @param {HTMLElement} container
- * @param {Array<object>} sorted - result objects from sortResults()
- * @param {number} directCount  - 0 when unknown (lock-file resolution without package.json)
+ * @param {Array<object>} sorted   - result objects from sortResults()
+ * @param {number} directCount     - 0 when unknown (lock-file resolution without package.json)
+ * @param {string|null} [note]     - optional informational note shown below the summary
  */
-function renderResults(container, sorted, directCount) {
+function renderResults(container, sorted, directCount, note = null) {
   container.hidden = false;
   container.innerHTML = '';
 
@@ -119,6 +120,13 @@ function renderResults(container, sorted, directCount) {
     summary.textContent = `${total} package${total !== 1 ? 's' : ''} total`;
   }
   container.appendChild(summary);
+
+  if (note) {
+    const noteEl = document.createElement('p');
+    noteEl.className = 'note note-warning';
+    noteEl.textContent = `ⓘ ${note}`;
+    container.appendChild(noteEl);
+  }
 
   if (total === 0) {
     const msg = document.createElement('p');
@@ -255,28 +263,28 @@ if (typeof document !== 'undefined') {
     try {
       // List the root directory to detect ecosystem
       const listing = await listDirectory(githubRef.owner, githubRef.repo, githubRef.subpath, githubRef.ref);
-      const ecosystem = detectEcosystem(listing ?? []);
-
-      if (!ecosystem) {
-        showError('Could not detect ecosystem (npm or Python). No recognised dependency file found.');
-        return;
-      }
+      // Fall back to 'python' when no files are recognised at the root —
+      // parseGithubDependencies will traverse up to MAX_DEPTH levels and throw
+      // a clear error if nothing is found there either (covers HA integrations
+      // where manifest.json sits at custom_components/<name>/).
+      const ecosystem = detectEcosystem(listing ?? []) ?? 'python';
 
       appendProgress(`Detected: ${ecosystem}. Fetching dependency files from GitHub…\n`);
 
-      let deps, source, directCount;
+      let deps, source, directCount, note = null;
 
       if (ecosystem === 'npm') {
-        ({ deps, source } = await parseGithubNpmDependencies(githubRef, { includeTests }));
-        // For lock-file resolution direct count is unknown (0 = omit breakdown)
-        directCount = source === 'package-lock.json' ? 0 : deps.length;
+        ({ deps, source, note } = await parseGithubNpmDependencies(githubRef, { includeTests }));
       } else {
         ({ deps, source } = await parseGithubDependencies(githubRef, { includeTests }));
-        directCount = deps.length;
       }
 
+      // Lock files don't carry direct/transitive info — omit the breakdown (directCount = 0)
+      const isLockFile = source === 'package-lock.json' || source === 'pnpm-lock.yaml';
+      directCount = isLockFile ? 0 : deps.length;
+
       appendProgress(
-        `Found ${deps.length} ${source === 'package-lock.json' ? 'installed' : 'direct'} ` +
+        `Found ${deps.length} ${isLockFile ? 'installed' : 'direct'} ` +
         `${deps.length === 1 ? 'dependency' : 'dependencies'} in: ${source}\n` +
         `Resolving…\n`
       );
@@ -286,8 +294,8 @@ if (typeof document !== 'undefined') {
         results = await resolveNpm(deps, {
           onProgress: (msg) => appendProgress(msg + '\n'),
         });
-        // After resolution, recalculate directCount against resolved names
-        if (source !== 'package-lock.json') {
+        // After resolution, recalculate directCount against resolved names (package.json only)
+        if (!isLockFile) {
           const directNames = new Set(deps.map(d => d.name.toLowerCase()));
           directCount = [...results.values()].filter(r => directNames.has(r.name.toLowerCase())).length;
         }
@@ -300,7 +308,7 @@ if (typeof document !== 'undefined') {
       }
 
       progressDiv.hidden = true;
-      renderResults(resultsDiv, sortResults(results), directCount);
+      renderResults(resultsDiv, sortResults(results), directCount, note);
     } catch (err) {
       showError(err.message);
     } finally {

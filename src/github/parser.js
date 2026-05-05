@@ -13,6 +13,7 @@
 import { listDirectory, fetchFileContent } from './client.js';
 import { parsePackageJson } from '../npm/parserCore.js';
 import { parsePackageLock } from '../npm/lockParser.js';
+import { parsePnpmLock, getPnpmMajorVersion } from '../npm/pnpmLockParser.js';
 import {
   parseDependencyString,
   parsePyprojectToml,
@@ -273,12 +274,13 @@ async function parseGithubNpmDependencies({ owner, repo, ref, subpath }, options
   );
 
   const preferred = fileNames.has('package-lock.json') ? 'package-lock.json'
-    : fileNames.has('package.json')                    ? 'package.json'
+    : fileNames.has('pnpm-lock.yaml')                   ? 'pnpm-lock.yaml'
+    : fileNames.has('package.json')                      ? 'package.json'
     : null;
 
   if (!preferred) {
     const location = subpath ? `${owner}/${repo}/${subpath}` : `${owner}/${repo}`;
-    throw new Error(`No npm dependency file found in ${location} (ref: ${ref}). Looked for: package-lock.json, package.json`);
+    throw new Error(`No npm dependency file found in ${location} (ref: ${ref}). Looked for: package-lock.json, pnpm-lock.yaml, package.json`);
   }
 
   const filePath = subpath ? `${subpath}/${preferred}` : preferred;
@@ -287,11 +289,15 @@ async function parseGithubNpmDependencies({ owner, repo, ref, subpath }, options
     throw new Error(`Failed to fetch ${filePath} from ${owner}/${repo}`);
   }
 
-  const deps = preferred === 'package-lock.json'
-    ? parsePackageLock(content, includeTests)
+  const deps = preferred === 'package-lock.json' ? parsePackageLock(content, includeTests)
+    : preferred === 'pnpm-lock.yaml'             ? parsePnpmLock(content, includeTests)
     : parsePackageJson(content, includeTests);
 
-  return { deps, source: preferred };
+  const note = preferred === 'pnpm-lock.yaml' && getPnpmMajorVersion(content) >= 9
+    ? 'pnpm-lock.yaml v9 does not flag packages as dev-only — all installed packages are listed, including test and dev dependencies.'
+    : null;
+
+  return { deps, source: preferred, note };
 }
 
 export { parseGithubDependencies, parseGithubNpmDependencies, resolvePath, mergeDeps };
