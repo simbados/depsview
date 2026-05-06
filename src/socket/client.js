@@ -11,10 +11,10 @@ const SOCKET_API = 'https://api.socket.dev/v0/orgs';
 
 /**
  * Builds a Package URL (PURL) string for a given package.
- * @param {string} name       - package name
+ * @param {string} name       - package name (e.g. "express" or "@esbuild/aix-ppc64")
  * @param {string} version    - exact version string
  * @param {'npm'|'pypi'} ecosystem
- * @returns {string} e.g. "pkg:npm/express@4.19.2" or "pkg:pypi/requests@2.28.0"
+ * @returns {string} e.g. "pkg:npm/express@4.19.2" or "pkg:npm/@esbuild/aix-ppc64@0.21.5"
  */
 function buildPurl(name, version, ecosystem) {
   return `pkg:${ecosystem}/${name}@${version}`;
@@ -87,12 +87,14 @@ async function fetchSocketScores(packages, apiKey, orgSlug, ecosystem) {
 
     const scores = new Map();
     for (const obj of parseNdjson(text)) {
-      if (obj.name && obj.version && obj.score?.supplyChain != null) {
-        const key = `${obj.name.toLowerCase()}@${obj.version}`;
-        if (!scores.has(key)) scores.set(key, obj.score.supplyChain);
-      }
+      if (!obj.name || !obj.version || obj.score?.supplyChain == null) continue;
+      // For scoped npm packages the API splits the name into `namespace` (@scope)
+      // and `name` (bare package name). Recombine them so the key matches the
+      // "name@version" format used by the rest of the codebase.
+      const fullName = obj.namespace ? `${obj.namespace}/${obj.name}` : obj.name;
+      const key = `${fullName.toLowerCase()}@${obj.version}`;
+      if (!scores.has(key)) scores.set(key, obj.score.supplyChain);
     }
-    console.log(scores)
     return scores;
   } catch {
     return new Map();

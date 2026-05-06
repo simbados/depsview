@@ -56,7 +56,7 @@ certifi   2024.2.2  2024-02-02   2011-09-30     29        https://pypi.org/proje
 2 packages total  (2 direct, 0 transitive)
 ```
 
-Results are sorted by release date (newest first).
+Results are sorted by release date (newest first). In the web UI and HTML report, click any column header to re-sort — clicking a sorted column toggles ascending/descending.
 
 ## Flags
 
@@ -69,6 +69,7 @@ Results are sorted by release date (newest first).
 | `--download-stats` / `--ds` | Fetch Python download counts from pypistats.org (Python only) |
 | `--socket-key=<key>` | Socket.dev API key — enables the Supply Chain column |
 | `--socket-org=<slug>` | Socket.dev organisation slug (required with `--socket-key`) |
+| `--report[=<file>]` | Write a self-contained HTML report (default: `depsview-report.html`) |
 | `--debug` | Print API errors and warnings to stderr |
 
 Both socket flags can also be supplied as environment variables `SOCKET_KEY` and `SOCKET_ORG`; the `--socket-key` / `--socket-org` flags take precedence when both are present.
@@ -204,6 +205,17 @@ When `--socket-key` and `--socket-org` are provided, each entry additionally con
 ```
 
 `supplyChainScore` is `null` when the package was not returned by the socket.dev API.
+
+### HTML report
+
+```bash
+node src/main.js <path-or-url> --report                 # writes depsview-report.html
+node src/main.js <path-or-url> --report=custom-name.html
+```
+
+Generates a self-contained HTML file (all CSS inlined, no external dependencies) that replicates the terminal table with the same dark theme used by the web UI. The report can be opened directly in a browser, attached to a PR, or shared via email. All flags that affect the terminal table (`--download-stats`, `--socket-key`, etc.) are reflected in the report. The `--report` flag can be combined with `--json` — the JSON goes to stdout and the HTML is written to the file.
+
+Every column header is clickable: click once to sort ascending, click again to toggle descending. The default sort is release date descending (newest first). String columns (Package, Version) default to ascending on first click; all other columns (dates, counts, Supply Chain score) default to descending.
 
 ## Excluding test dependencies
 

@@ -24,6 +24,7 @@ import { normalizePackageName   as normalizeNpm       } from './npm/depResolver.
 import { parsePackageJson                             } from './npm/parserCore.js';
 
 import { formatTable, formatJson } from './output/formatter.js';
+import { generateReport            } from './output/reportGenerator.js';
 import { fetchSocketScores        } from './socket/client.js';
 import { setDebug                } from './util/debugging.js';
 import { isGithubUrl, parseGithubUrl } from './github/url.js';
@@ -39,7 +40,7 @@ const PYTHON_FILES = new Set(['pyproject.toml', 'requirements.txt', 'setup.cfg',
  * Parses CLI arguments from process.argv.
  * Socket.dev credentials can also be supplied via SOCKET_KEY / SOCKET_ORG env vars;
  * the --socket-key= / --socket-org= flags take precedence when both are present.
- * @returns {{ projectPath: string, json: boolean, debug: boolean, includeTests: boolean, downloadStats: boolean, ecosystem: 'npm'|'python'|null, socketKey: string|null, socketOrg: string|null }}
+ * @returns {{ projectPath: string, json: boolean, debug: boolean, includeTests: boolean, downloadStats: boolean, ecosystem: 'npm'|'python'|null, socketKey: string|null, socketOrg: string|null, reportPath: string|null }}
  */
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -56,9 +57,18 @@ function parseArgs() {
   const socketKey    = socketKeyArg ? socketKeyArg.slice('--socket-key='.length) : (process.env.SOCKET_KEY ?? null);
   const socketOrg    = socketOrgArg ? socketOrgArg.slice('--socket-org='.length) : (process.env.SOCKET_ORG ?? null);
 
+  // --report              → write to depsview-report.html
+  // --report=custom.html  → write to custom.html
+  const reportArg = args.find(a => a === '--report' || a.startsWith('--report='));
+  const reportPath = reportArg === undefined
+    ? null
+    : reportArg === '--report'
+      ? 'depsview-report.html'
+      : reportArg.slice('--report='.length);
+
   if (positional.length === 0) {
     console.error('Usage: depsview <path-to-project|github-url> [--npm|--python] [--json] [--debug] [--include-tests] [--download-stats|--ds]');
-    console.error('       [--socket-key=<key>] [--socket-org=<slug>]');
+    console.error('       [--socket-key=<key>] [--socket-org=<slug>] [--report[=<file>]]');
     console.error('');
     console.error('Python files: pyproject.toml, manifest.json, requirements.txt, setup.cfg, Pipfile');
     console.error('npm files:    package-lock.json, pnpm-lock.yaml (preferred), package.json');
@@ -66,7 +76,7 @@ function parseArgs() {
   }
 
   const ecosystem = npmFlag ? 'npm' : pythonFlag ? 'python' : null;
-  return { projectPath: positional[0], json: jsonFlag, debug: debugFlag, includeTests: includeTestsFlag, downloadStats: downloadStatsFlag, ecosystem, socketKey, socketOrg };
+  return { projectPath: positional[0], json: jsonFlag, debug: debugFlag, includeTests: includeTestsFlag, downloadStats: downloadStatsFlag, ecosystem, socketKey, socketOrg, reportPath };
 }
 
 /**
@@ -118,7 +128,7 @@ function readDirectNamesFromPackageJson(dirPath, includeTests) {
  * @returns {Promise<void>}
  */
 async function main() {
-  const { projectPath, json, debug, includeTests, downloadStats, ecosystem: ecosystemFlag, socketKey, socketOrg } = parseArgs();
+  const { projectPath, json, debug, includeTests, downloadStats, ecosystem: ecosystemFlag, socketKey, socketOrg, reportPath } = parseArgs();
   if (debug) setDebug(true);
 
   const absolutePath = path.resolve(projectPath);
@@ -220,10 +230,20 @@ async function main() {
   }
 
   // ── Step 4: Format output ──────────────────────────────────────────────────
+  const outputOpts = { downloadStats: ecosystem === 'python' && downloadStats, socketScores };
+
   if (json) {
-    formatJson(results, { downloadStats: ecosystem === 'python' && downloadStats, socketScores });
+    formatJson(results, outputOpts);
   } else {
-    formatTable(results, directNames, { downloadStats: ecosystem === 'python' && downloadStats, socketScores });
+    formatTable(results, directNames, outputOpts);
+  }
+
+  // ── Step 5: Write HTML report (optional) ──────────────────────────────────
+  if (reportPath) {
+    const html = generateReport(results, directNames, { ...outputOpts, source: source ?? null, ecosystem });
+    const resolvedReport = path.resolve(reportPath);
+    fs.writeFileSync(resolvedReport, html, 'utf8');
+    process.stderr.write(`Report written to ${resolvedReport}\n`);
   }
 }
 

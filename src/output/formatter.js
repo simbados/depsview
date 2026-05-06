@@ -218,4 +218,4 @@ function formatJson(results, opts = {}) {
   console.log(JSON.stringify(rows, null, 2));
 }
 
-export { formatTable, formatJson, daysSince, ANSI_RED, ANSI_YELLOW, ANSI_GREEN, ANSI_RESET };
+export { formatTable, formatJson, sortedResults, daysSince, ANSI_RED, ANSI_YELLOW, ANSI_GREEN, ANSI_RESET };

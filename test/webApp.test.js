@@ -6,7 +6,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatNumber, daysSince, sortResults, detectEcosystem } from '../web/app.js';
+import { formatNumber, daysSince, sortResults, sortResultsBy, detectEcosystem } from '../web/app.js';
 
 // ── formatNumber ───────────────────────────────────────────────────────────────
 
@@ -146,6 +146,144 @@ describe('sortResults', () => {
   });
 });
 
+
+// ── sortResultsBy ──────────────────────────────────────────────────────────────
+
+describe('sortResultsBy — string columns', () => {
+  it('sorts name ascending', () => {
+    const map = new Map([
+      ['z', { name: 'zeta',  version: '1.0.0', releaseDate: '2024-01-01' }],
+      ['a', { name: 'alpha', version: '1.0.0', releaseDate: '2024-01-01' }],
+      ['m', { name: 'mu',    version: '1.0.0', releaseDate: '2024-01-01' }],
+    ]);
+    const sorted = sortResultsBy(map, 'name', 'asc');
+    assert.equal(sorted[0].name, 'alpha');
+    assert.equal(sorted[1].name, 'mu');
+    assert.equal(sorted[2].name, 'zeta');
+  });
+
+  it('sorts name descending', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', version: '1.0.0', releaseDate: '2024-01-01' }],
+      ['z', { name: 'zeta',  version: '1.0.0', releaseDate: '2024-01-01' }],
+    ]);
+    const sorted = sortResultsBy(map, 'name', 'desc');
+    assert.equal(sorted[0].name, 'zeta');
+    assert.equal(sorted[1].name, 'alpha');
+  });
+});
+
+describe('sortResultsBy — date columns', () => {
+  it('sorts releaseDate descending (newest first)', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', releaseDate: '2022-01-01' }],
+      ['b', { name: 'beta',  releaseDate: '2024-06-01' }],
+      ['c', { name: 'gamma', releaseDate: '2023-03-15' }],
+    ]);
+    const sorted = sortResultsBy(map, 'releaseDate', 'desc');
+    assert.equal(sorted[0].name, 'beta');
+    assert.equal(sorted[1].name, 'gamma');
+    assert.equal(sorted[2].name, 'alpha');
+  });
+
+  it('sorts releaseDate ascending (oldest first)', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', releaseDate: '2022-01-01' }],
+      ['b', { name: 'beta',  releaseDate: '2024-06-01' }],
+    ]);
+    const sorted = sortResultsBy(map, 'releaseDate', 'asc');
+    assert.equal(sorted[0].name, 'alpha');
+    assert.equal(sorted[1].name, 'beta');
+  });
+
+  it('sinks unknown releaseDate to the bottom regardless of direction', () => {
+    const map = new Map([
+      ['a', { name: 'alpha',   releaseDate: 'unknown' }],
+      ['b', { name: 'beta',    releaseDate: '2024-01-01' }],
+    ]);
+    const descSorted = sortResultsBy(map, 'releaseDate', 'desc');
+    assert.equal(descSorted[1].name, 'alpha', 'unknown sinks in desc');
+    const ascSorted  = sortResultsBy(map, 'releaseDate', 'asc');
+    assert.equal(ascSorted[1].name, 'alpha', 'unknown sinks in asc');
+  });
+
+  it('sorts firstReleaseDate column', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', firstReleaseDate: '2015-01-01' }],
+      ['b', { name: 'beta',  firstReleaseDate: '2020-06-01' }],
+    ]);
+    const sorted = sortResultsBy(map, 'firstReleaseDate', 'desc');
+    assert.equal(sorted[0].name, 'beta');
+    assert.equal(sorted[1].name, 'alpha');
+  });
+});
+
+describe('sortResultsBy — numeric columns', () => {
+  it('sorts releaseCount descending', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', releaseCount: 10 }],
+      ['b', { name: 'beta',  releaseCount: 50 }],
+      ['c', { name: 'gamma', releaseCount: 5  }],
+    ]);
+    const sorted = sortResultsBy(map, 'releaseCount', 'desc');
+    assert.equal(sorted[0].name, 'beta');
+    assert.equal(sorted[2].name, 'gamma');
+  });
+
+  it('sorts releaseCount ascending', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', releaseCount: 10 }],
+      ['b', { name: 'beta',  releaseCount: 50 }],
+    ]);
+    const sorted = sortResultsBy(map, 'releaseCount', 'asc');
+    assert.equal(sorted[0].name, 'alpha');
+    assert.equal(sorted[1].name, 'beta');
+  });
+
+  it('sinks null downloadsLastMonth to the bottom', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', downloadsLastMonth: null }],
+      ['b', { name: 'beta',  downloadsLastMonth: 1000 }],
+    ]);
+    const sorted = sortResultsBy(map, 'downloadsLastMonth', 'desc');
+    assert.equal(sorted[1].name, 'alpha', 'null sinks regardless of direction');
+  });
+
+  it('sorts supplyChain column descending', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', supplyChain: 0.4 }],
+      ['b', { name: 'beta',  supplyChain: 0.9 }],
+      ['c', { name: 'gamma', supplyChain: 0.7 }],
+    ]);
+    const sorted = sortResultsBy(map, 'supplyChain', 'desc');
+    assert.equal(sorted[0].name, 'beta');
+    assert.equal(sorted[1].name, 'gamma');
+    assert.equal(sorted[2].name, 'alpha');
+  });
+
+  it('sinks null supplyChain to the bottom', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', supplyChain: null }],
+      ['b', { name: 'beta',  supplyChain: 0.8  }],
+    ]);
+    const desc = sortResultsBy(map, 'supplyChain', 'desc');
+    assert.equal(desc[1].name, 'alpha');
+    const asc  = sortResultsBy(map, 'supplyChain', 'asc');
+    assert.equal(asc[1].name, 'alpha');
+  });
+});
+
+describe('sortResultsBy — does not mutate input Map', () => {
+  it('returns a new array leaving the Map unchanged', () => {
+    const map = new Map([
+      ['a', { name: 'alpha', releaseDate: '2022-01-01' }],
+      ['b', { name: 'beta',  releaseDate: '2024-01-01' }],
+    ]);
+    const originalKeys = [...map.keys()];
+    sortResultsBy(map, 'releaseDate', 'desc');
+    assert.deepEqual([...map.keys()], originalKeys);
+  });
+});
 
 // ── detectEcosystem ────────────────────────────────────────────────────────────
 //

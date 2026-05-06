@@ -46,6 +46,53 @@ export function daysSince(dateStr) {
 }
 
 /**
+ * Sorts a Map of resolved dependency results by an arbitrary column.
+ * "unknown" date strings and null numeric values always sink to the bottom
+ * regardless of direction, so the table stays readable.
+ * String columns (name, version) use localeCompare; date columns compare
+ * ISO-8601 strings lexicographically (valid because YYYY-MM-DD is zero-padded);
+ * numeric columns compare by value. All sorts use name as a tiebreaker.
+ * @param {Map<string, object>} resultsMap
+ * @param {'name'|'version'|'releaseDate'|'firstReleaseDate'|'releaseCount'|'downloadsLastMonth'|'supplyChain'} column
+ * @param {'asc'|'desc'} direction
+ * @returns {Array<object>}
+ */
+export function sortResultsBy(resultsMap, column, direction) {
+  const sign   = direction === 'asc' ? 1 : -1;
+  const isDate = column === 'releaseDate' || column === 'firstReleaseDate';
+  const isNum  = column === 'releaseCount' || column === 'downloadsLastMonth' || column === 'supplyChain';
+
+  return [...resultsMap.values()].sort((a, b) => {
+    const aVal = a[column] ?? (isDate ? 'unknown' : null);
+    const bVal = b[column] ?? (isDate ? 'unknown' : null);
+
+    if (isDate) {
+      const aUnk = aVal === 'unknown';
+      const bUnk = bVal === 'unknown';
+      if (aUnk && bUnk) return a.name.localeCompare(b.name);
+      if (aUnk) return 1;
+      if (bUnk) return -1;
+      const cmp = aVal.localeCompare(bVal);
+      return cmp !== 0 ? sign * cmp : a.name.localeCompare(b.name);
+    }
+
+    if (isNum) {
+      const aNull = aVal == null;
+      const bNull = bVal == null;
+      if (aNull && bNull) return a.name.localeCompare(b.name);
+      if (aNull) return 1;
+      if (bNull) return -1;
+      const cmp = aVal - bVal;
+      return cmp !== 0 ? sign * cmp : a.name.localeCompare(b.name);
+    }
+
+    // String columns: name, version
+    const cmp = String(aVal ?? '').localeCompare(String(bVal ?? ''));
+    return cmp !== 0 ? sign * cmp : 0;
+  });
+}
+
+/**
  * Sorts a Map of resolved dependency results by release date, newest first.
  * "unknown" dates sink to the bottom, sorted alphabetically among themselves.
  * Does not mutate the input Map.
@@ -53,15 +100,7 @@ export function daysSince(dateStr) {
  * @returns {Array<object>}
  */
 export function sortResults(resultsMap) {
-  return [...resultsMap.values()].sort((a, b) => {
-    const dA = a.releaseDate ?? 'unknown';
-    const dB = b.releaseDate ?? 'unknown';
-    if (dA === 'unknown' && dB === 'unknown') return a.name.localeCompare(b.name);
-    if (dA === 'unknown') return 1;
-    if (dB === 'unknown') return -1;
-    if (dA !== dB) return dB.localeCompare(dA);
-    return a.name.localeCompare(b.name);
-  });
+  return sortResultsBy(resultsMap, 'releaseDate', 'desc');
 }
 
 /**
@@ -139,9 +178,17 @@ function renderResults(container, sorted, directCount, note = null) {
 
   const thead = table.createTHead();
   const headerRow = thead.insertRow();
-  for (const label of ['Package', 'Version', 'Released', 'First Release', 'Releases']) {
+  const COL_DEFS = [
+    ['Package',       'name'],
+    ['Version',       'version'],
+    ['Released',      'releaseDate'],
+    ['First Release', 'firstReleaseDate'],
+    ['Releases',      'releaseCount'],
+  ];
+  for (const [label, col] of COL_DEFS) {
     const th = document.createElement('th');
     th.textContent = label;
+    th.dataset.col = col;
     headerRow.appendChild(th);
   }
 
@@ -308,7 +355,34 @@ if (typeof document !== 'undefined') {
       }
 
       progressDiv.hidden = true;
-      renderResults(resultsDiv, sortResults(results), directCount, note);
+
+      // Sort state lives in this submission's closure so each new search
+      // starts fresh without affecting a concurrent tab or previous state.
+      let sortCol = 'releaseDate';
+      let sortDir = 'desc';
+
+      function rerender() {
+        renderResults(resultsDiv, sortResultsBy(results, sortCol, sortDir), directCount, note);
+
+        // Wire sort handlers onto the freshly rendered headers.
+        resultsDiv.querySelectorAll('th[data-col]').forEach(th => {
+          const col = th.dataset.col;
+          th.classList.toggle('th-sort-asc',  col === sortCol && sortDir === 'asc');
+          th.classList.toggle('th-sort-desc', col === sortCol && sortDir === 'desc');
+          th.addEventListener('click', () => {
+            if (sortCol === col) {
+              sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+              sortCol = col;
+              // Dates and counts default to descending; strings default to ascending.
+              sortDir = (col === 'name' || col === 'version') ? 'asc' : 'desc';
+            }
+            rerender();
+          });
+        });
+      }
+
+      rerender();
     } catch (err) {
       showError(err.message);
     } finally {

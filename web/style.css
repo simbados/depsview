@@ -264,3 +264,9 @@ tbody tr:hover td { background: #273548; }
 /* PyPI links in the results table */
 table a { color: var(--accent); text-decoration: none; }
 table a:hover { text-decoration: underline; }
+
+/* Sortable column headers */
+th[data-col] { cursor: pointer; user-select: none; }
+th[data-col]:hover { color: var(--text); }
+th.th-sort-desc::after { content: ' ▼'; font-size: 0.75em; opacity: 0.8; }
+th.th-sort-asc::after  { content: ' ▲'; font-size: 0.75em; opacity: 0.8; }

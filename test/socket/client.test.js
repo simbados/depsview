@@ -38,6 +38,12 @@ describe('buildPurl', () => {
   it('builds a pypi purl', () => {
     assert.equal(buildPurl('requests', '2.28.0', 'pypi'), 'pkg:pypi/requests@2.28.0');
   });
+
+  it('uses a raw @ for scoped npm packages — the socket.dev API expects it unencoded', () => {
+    // The API returns namespace:"@clack", name:"core" in its response, confirming
+    // it accepts and normalises the raw @ itself. Percent-encoding breaks matching.
+    assert.equal(buildPurl('@esbuild/aix-ppc64', '0.21.5', 'npm'), 'pkg:npm/@esbuild/aix-ppc64@0.21.5');
+  });
 });
 
 // ── parseNdjson ────────────────────────────────────────────────────────────────
@@ -88,6 +94,20 @@ describe('fetchSocketScores — npm success', () => {
     assert.equal(result.size, 2);
     assert.equal(result.get('eslint@8.57.0'), 0.9);
     assert.equal(result.get('lodash@4.17.21'), 0.75);
+  });
+
+  it('recombines namespace and name for scoped packages', async () => {
+    // The socket.dev API splits "@clack/core" into namespace:"@clack", name:"core".
+    // The key must be "@clack/core@1.3.0" to match the rest of the codebase.
+    mockNdjson([
+      JSON.stringify({ namespace: '@clack', name: 'core', version: '1.3.0', score: { supplyChain: 1.0 } }),
+    ]);
+    const result = await fetchSocketScores(
+      [{ name: '@clack/core', version: '1.3.0' }],
+      'key', 'org', 'npm'
+    );
+    assert.equal(result.size, 1);
+    assert.equal(result.get('@clack/core@1.3.0'), 1.0);
   });
 });
 
