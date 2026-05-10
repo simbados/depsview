@@ -116,12 +116,13 @@ function formatDownloads(count) {
  * @param {Map<string, { name: string, version: string, releaseDate: string, firstReleaseDate: string, releaseCount: number, downloadsLastMonth: number|null, error?: string }>} results
  * @param {Set<string>} directNames - normalized names of direct (non-transitive) dependencies,
  *   used to report counts at the footer
- * @param {{ downloadStats?: boolean, socketScores?: Map<string,number>|null }} [opts]
- * @param {boolean} [opts.downloadStats=true] - when false, the Downloads/mo column is omitted
- * @param {Map<string,number>|null} [opts.socketScores=null] - when provided, adds a Supply Chain column
+ * @param {{ downloadStats?: boolean, socketScores?: Map<string,number>|null, source?: string|null }} [opts]
+ * @param {boolean}                    [opts.downloadStats=true]  - when false, the Downloads/mo column is omitted
+ * @param {Map<string,number>|null}    [opts.socketScores=null]   - when provided, adds a Supply Chain column
+ * @param {string|null}                [opts.source=null]         - dependency file name(s) shown in the footer
  */
 function formatTable(results, directNames, opts = {}) {
-  const { downloadStats = true, socketScores = null } = opts;
+  const { downloadStats = true, socketScores = null, source = null } = opts;
   const rows = sortedResults(results, socketScores ?? new Map());
   if (rows.length === 0) {
     console.log('No dependencies found.');
@@ -190,6 +191,7 @@ function formatTable(results, directNames, opts = {}) {
   } else {
     console.log(`${rows.length} packages total`);
   }
+  if (source) console.log(`Files: ${source}`);
 }
 
 /**

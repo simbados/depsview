@@ -235,7 +235,7 @@ async function main() {
   if (json) {
     formatJson(results, outputOpts);
   } else {
-    formatTable(results, directNames, outputOpts);
+    formatTable(results, directNames, { ...outputOpts, source: source ?? null });
   }
 
   // ── Step 5: Write HTML report (optional) ──────────────────────────────────

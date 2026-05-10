@@ -143,8 +143,9 @@ function addCell(row, text) {
  * @param {Array<object>} sorted   - result objects from sortResults()
  * @param {number} directCount     - 0 when unknown (lock-file resolution without package.json)
  * @param {string|null} [note]     - optional informational note shown below the summary
+ * @param {string|null} [source]   - dependency file name(s) shown below the summary
  */
-function renderResults(container, sorted, directCount, note = null) {
+function renderResults(container, sorted, directCount, note = null, source = null) {
   container.hidden = false;
   container.innerHTML = '';
 
@@ -159,6 +160,13 @@ function renderResults(container, sorted, directCount, note = null) {
     summary.textContent = `${total} package${total !== 1 ? 's' : ''} total`;
   }
   container.appendChild(summary);
+
+  if (source) {
+    const sourceEl = document.createElement('p');
+    sourceEl.className = 'source-files';
+    sourceEl.textContent = `Files: ${source}`;
+    container.appendChild(sourceEl);
+  }
 
   if (note) {
     const noteEl = document.createElement('p');
@@ -362,7 +370,7 @@ if (typeof document !== 'undefined') {
       let sortDir = 'desc';
 
       function rerender() {
-        renderResults(resultsDiv, sortResultsBy(results, sortCol, sortDir), directCount, note);
+        renderResults(resultsDiv, sortResultsBy(results, sortCol, sortDir), directCount, note, source);
 
         // Wire sort handlers onto the freshly rendered headers.
         resultsDiv.querySelectorAll('th[data-col]').forEach(th => {
